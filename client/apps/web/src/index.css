@@ -55,3 +55,12 @@
 @utility field-shell {
   position: relative;
 }
+
+/* 运行中连线：琥珀底色之上再加呼吸脉冲（方向=流动虚线，状态=颜色+脉冲，两通道正交） */
+.react-flow__edge.edge-running {
+  animation: devloop-edge-pulse 1.2s ease-in-out infinite;
+}
+@keyframes devloop-edge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}

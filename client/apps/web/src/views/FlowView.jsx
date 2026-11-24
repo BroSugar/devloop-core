@@ -35,6 +35,7 @@ export function FlowView({ panel, project, onOpenTask }) {
         animated: true,
         markerEnd: { type: MarkerType.ArrowClosed, color },
         style: { stroke: color },
+        className: source?.status === 'running' ? 'edge-running' : undefined,
       };
     });
   }, [nodes, edges]);
@@ -50,6 +51,7 @@ export function FlowView({ panel, project, onOpenTask }) {
   return (
     <div className="h-[calc(100dvh-8rem)] w-full overflow-hidden rounded-lg border border-border bg-background">
       <ReactFlow
+        key={project.id}
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
