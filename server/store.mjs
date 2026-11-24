@@ -47,8 +47,8 @@ export class Store {
   }
 
   projectStats(projectId) {
-    const tasks = this.db.prepare(`SELECT status, COUNT(*) AS n FROM tasks t JOIN requirements r ON r.id = t.requirement_id
-                                   WHERE r.project_id = ? GROUP BY status`).all(projectId);
+    const tasks = this.db.prepare(`SELECT t.status AS status, COUNT(*) AS n FROM tasks t JOIN requirements r ON r.id = t.requirement_id
+                                   WHERE r.project_id = ? GROUP BY t.status`).all(projectId);
     const requirements = this.db.prepare('SELECT COUNT(*) AS n FROM requirements WHERE project_id = ?').get(projectId).n;
     const by = Object.fromEntries(tasks.map((t) => [t.status, t.n]));
     return {

@@ -18,9 +18,13 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
-function sendJson(res, status, payload) {
+function sendJson(res, status, payload, headers = {}) {
   const body = JSON.stringify(payload);
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) });
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(body),
+    ...headers,
+  });
   res.end(body);
 }
 
@@ -48,7 +52,8 @@ function readBody(req) {
 
 function resolveStatic(pathname) {
   if (pathname === '/' || pathname === '') return path.join(ROOT, 'client/web/index.html');
-  const safe = path.normalize(pathname).replace(/^([/\\])+/, '');
+  // 统一成正斜杠再做前缀判断：Windows 下 path.normalize 会引入反斜杠，导致静态路由 404
+  const safe = pathname.replace(/\\/g, '/').replace(/^\/+/, '');
   if (safe.includes('..')) return null;
   if (safe.startsWith('contracts/')) return path.join(ROOT, safe);
   if (safe.startsWith('web/') || safe.startsWith('views/') || safe.startsWith('shell/')) {
@@ -82,8 +87,8 @@ export function createServer({ store, token }) {
         headers: req.headers,
       });
       if (result.text !== undefined) return sendText(res, result.status, result.text, result.headers);
-      if (result.error) return sendJson(res, result.status, { error: result.error, meta });
-      return sendJson(res, result.status, { data: result.data, meta }, );
+      if (result.error) return sendJson(res, result.status, { error: result.error, meta }, result.headers);
+      return sendJson(res, result.status, { data: result.data, meta }, result.headers);
     }
 
     const file = resolveStatic(pathname);

@@ -69,10 +69,15 @@ function seedAgents(store, projectId) {
   const agentsFile = path.join(PLATFORM_ROOT, 'config/agents.yaml');
   const providersFile = path.join(PLATFORM_ROOT, 'config/providers.yaml');
   if (!fs.existsSync(agentsFile) || !fs.existsSync(providersFile)) return;
-  const agents = readYaml(agentsFile).agents || {};
+  const doc = readYaml(agentsFile);
+  const agents = doc.agents || {};
+  const routing = doc.routing || {};
   const providers = readYaml(providersFile).providers || {};
 
-  for (const [role, agent] of Object.entries(agents)) {
+  for (const role of ['decomposer', 'implementer', 'reviewer']) {
+    const agentName = routing.by_role?.[role] || routing.default;
+    const agent = agents[agentName];
+    if (!agent) continue;
     const provider = providers[agent.provider];
     if (!provider) continue;
     const adapter = provider.kind === 'cli' ? 'cli' : provider.kind;
@@ -100,7 +105,6 @@ function seedAgents(store, projectId) {
     policy: { allowNetwork: false, allowShell: true, maxRepairs: 2 },
   });
 }
-
 function seedArchive(store, projectId) {
   const base = path.join(PLATFORM_ROOT, 'archive', projectId);
   if (!fs.existsSync(base)) return { runs: 0, evidence: 0 };
@@ -156,7 +160,8 @@ function seedArchive(store, projectId) {
           evidenceCount++;
         }
 
-        store.addEvent({ kind: 'run.finished', projectId, requirementId: reqId, taskId, runId, payload: { status, seeded: true } });
+        const existed = store.db.prepare('SELECT id FROM events WHERE run_id = ?').get(runId);
+        if (!existed) store.addEvent({ kind: 'run.finished', projectId, requirementId: reqId, taskId, runId, payload: { status, seeded: true } });
         runs++;
       }
     }

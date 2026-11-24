@@ -87,3 +87,50 @@ node platform/cli.mjs archive-index | archive-verify
   本沙箱无外网，所以 AI 部分验证到"请求构造 + 路由 + dry-run"为止。
 - **不做需求澄清**：分解器的输入仍是人写的需求卡。
 - **单实例本地部署**：并发调度、队列、多租户配额未实现（见 [docs/03-平台治理.md](docs/03-平台治理.md)）。
+
+---
+
+# 服务端 + 客户端（v1）
+
+## 启动
+
+```bash
+node server/index.mjs          # http://127.0.0.1:8787  （token 默认 dev-local-token）
+node server/test/api.test.mjs  # API 契约测试（9 项）
+```
+
+打开 <http://127.0.0.1:8787/> 是面板；`/api/v1/*` 是需要 Bearer token 的接口。
+
+## 契约先行
+
+`contracts/` 是服务端与客户端的唯一事实来源，两边都从它派生：
+
+| 文件 | 作用 |
+| --- | --- |
+| [api.v1.yaml](contracts/api.v1.yaml) | 19 个端点、信封、错误码、ETag |
+| [db.v1.sql](contracts/db.v1.sql) | 16 张表：项目/配置快照/需求/AC/任务/依赖/写域/门禁/执行/阶段/变更/证据/agent/事件 |
+| [config.schema.v1.json](contracts/config.schema.v1.json) | 项目配置形状（服务端校验，客户端只读） |
+| [agent.schema.v1.json](contracts/agent.schema.v1.json) | agent 配置 + 执行策略（服务端下发） |
+| [ipc.v1.md](contracts/ipc.v1.md) | 壳 ↔ 视图：fs / term / agent 三类能力 |
+
+## 三层客户端
+
+```
+client/views/   纯渲染：只认 adapter + api，不碰 window/fetch
+client/shell/   适配器：adapter.mjs（契约+能力协商）、browser.mjs（全降级）、tauri.mjs（IPC）
+client/web/     壳 A：单页 Web（index.html + main.mjs + api.mjs + 样式）
+```
+
+Web 形态没有 fs/term/agent，视图据此隐藏本地入口；Tauri 壳接上后同一份视图获得全部能力。
+桌面壳决策见 [docs/04-客户端服务端架构.md](docs/04-客户端服务端架构.md)：**Tauri v2**，三周内交付不了 PTY 就切 Electron。
+
+## 状态归属
+
+- 面板的节点坐标、任务状态、DAG 层级、统计，全部由服务端算好返回（`GET /projects/{id}/panel`、`/requirements/{id}/dag`）。
+- 客户端只对**卡**有写权限，必须带 `If-Match: "v<version>"`；冲突返回 409。
+- 配置与 agent 策略客户端只读；本地 agent 覆盖走 `localOverride` 上报，由服务端 policy 判定。
+
+## 证据可追溯
+
+每次执行产生：`changes.txt` / `diff.patch` / 每阶段 `verify` 日志 / `result.json`，每条都带 sha256。
+`GET /runs/{id}/evidence` 列清单，`GET /evidence/{id}/content` 取原文，响应头 `x-evidence-sha256` 可与库中值比对。
