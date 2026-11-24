@@ -11,6 +11,8 @@
     "@devloop/api-client": "workspace:*",
     "@devloop/shell": "workspace:*",
     "@devloop/ui": "workspace:*",
+    "@xyflow/react": "^12.12.1",
+    "lucide-react": "^1.78.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

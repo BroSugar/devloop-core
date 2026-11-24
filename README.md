@@ -149,6 +149,10 @@ node server/test/api.test.mjs  # API 契约测试（9 项）
 
 打开 <http://127.0.0.1:8787/> 是面板；`/api/v1/*` 是需要 Bearer token 的接口。
 
+面板首页是流程视图——服务端算好的「需求卡 → 任务卡」DAG，节点状态与依赖直接可见：
+
+![流程视图：需求卡 → 任务卡 DAG](docs/images/flow-view.png)
+
 ## 契约先行
 
 `contracts/` 是服务端与客户端的唯一事实来源，两边都从它派生：
@@ -204,3 +208,7 @@ POST /api/v1/projects/{p}/card-sync/import  {}
 
 导出写的是工作区文件（不 commit），写前会自检"渲染出的 YAML 能解析回同一张卡"。冲突默认两侧都不动。
 Web 面板在流程视图右上角有「卡同步」入口。详见 [docs/05-卡同步与冲突检测.md](docs/05-卡同步与冲突检测.md)。
+
+卡同步视图把每张卡的三方比较状态（已同步 / DB 有改动 / 仓库有改动 / 冲突）列成一张表：
+
+![卡同步视图：三方比较状态表](docs/images/sync-view.png)

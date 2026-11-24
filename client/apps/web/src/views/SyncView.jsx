@@ -2,6 +2,7 @@ import { Button } from '@devloop/ui';
 import { Card, CardContent, CardHeader, CardTitle } from '@devloop/ui';
 import { StatusBadge } from '@devloop/ui';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@devloop/ui';
+import { ArrowLeft, Eye, FileUp, FileDown, Inbox } from 'lucide-react';
 
 const STATE_LABEL = {
   synced: '已同步', db_ahead: 'DB 有改动', file_ahead: '仓库有改动', conflict: '冲突',
@@ -21,17 +22,17 @@ export function SyncView({ project, report, busy, lastResult, onExport, onImport
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Button variant="ghost" size="sm" onClick={onBack}>← 返回流程</Button>
+          <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="size-3.5" aria-hidden="true" />返回流程</Button>
           <h2 className="mt-2 text-lg font-semibold">卡同步 · {project.name}</h2>
           <p className="text-xs text-muted-foreground">
             DB 有改动 {exportable} 张 · 仓库有改动 {importable} 张 · 冲突 {conflicts} 张
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => onExport(true)}>预览导出</Button>
-          <Button size="sm" disabled={busy} onClick={() => onExport(false)}>导出到仓库</Button>
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => onImport(true)}>预览导入</Button>
-          <Button variant="subtle" size="sm" disabled={busy} onClick={() => onImport(false)}>从仓库导入</Button>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => onExport(true)}><Eye className="size-3.5" aria-hidden="true" />预览导出</Button>
+          <Button size="sm" disabled={busy} onClick={() => onExport(false)}><FileUp className="size-3.5" aria-hidden="true" />导出到仓库</Button>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => onImport(true)}><Eye className="size-3.5" aria-hidden="true" />预览导入</Button>
+          <Button variant="subtle" size="sm" disabled={busy} onClick={() => onImport(false)}><FileDown className="size-3.5" aria-hidden="true" />从仓库导入</Button>
         </div>
       </div>
 
@@ -73,7 +74,7 @@ export function SyncView({ project, report, busy, lastResult, onExport, onImport
                   <TableCell className="text-[11px] text-muted-foreground">{short(i.fileSha)}</TableCell>
                 </TableRow>
               )) : (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-xs text-muted-foreground">没有卡</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="py-8 text-center text-xs text-muted-foreground"><Inbox className="mx-auto mb-2 size-6 opacity-50" aria-hidden="true" />没有卡</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

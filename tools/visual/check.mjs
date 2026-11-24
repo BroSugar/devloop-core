@@ -43,6 +43,8 @@ await page.locator('header select').selectOption('ledger-cli');
 await page.waitForSelector('[data-testid=task-node]:has-text("T-101")', { timeout: 15000 });
 const nodes2 = await page.locator('[data-testid=task-node]').count();
 check('切换项目后 DAG 重新渲染', nodes2 >= 3, `tasks=${nodes2}`);
+const edgeCount = await page.locator('.react-flow__edge').count();
+check('流程连线渲染', edgeCount >= 3, `edges=${edgeCount}`);
 
 // ---------- 3. 卡详情 ----------
 await page.locator('[data-testid=task-node]', { hasText: 'T-101' }).first().click();
@@ -83,8 +85,8 @@ check('证据视图：正文非空', preLen > 20, `${preLen} 字符`);
 await shot('04-evidence.png');
 
 // ---------- 6. 卡同步视图 ----------
-await page.getByText('← 返回卡').click();
-await page.getByText('← 返回流程').click();
+await page.getByText('返回卡').click();
+await page.getByText('返回流程').click();
 await page.getByRole('button', { name: /卡同步/ }).click();
 await page.getByText('卡同步 ·', { exact: false }).first().waitFor({ timeout: 8000 });
 const rows = await page.locator('table tbody tr').count();

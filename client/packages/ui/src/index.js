@@ -6,7 +6,7 @@ export { Button, buttonVariants } from './button.jsx';
 export { Input } from './input.jsx';
 export { Textarea } from './textarea.jsx';
 export { Label } from './label.jsx';
-export { Badge, StatusBadge } from './badge.jsx';
+export { Badge, StatusBadge, TONE_BY_STATUS, TONE_STROKE } from './badge.jsx';
 export { Card, CardHeader, CardTitle, CardContent } from './card.jsx';
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './table.jsx';
 export { FloatingInput, FloatingTextarea, FloatingSelect } from './floating-field.jsx';
