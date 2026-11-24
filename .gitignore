@@ -6,3 +6,4 @@ archive/
 .cache/
 node_modules/
 *.log
+projects/*/tasks/_graph.json
