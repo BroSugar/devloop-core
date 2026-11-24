@@ -1,0 +1,20 @@
+# 开发镜像：只跑后端（前端用宿主机 pnpm dev，HMR 更快）
+# 服务端零 npm 依赖，所以镜像里没有 pnpm install 步骤。
+FROM node:24-alpine
+
+# bootstrap 与任务执行都要 git
+RUN apk add --no-cache git
+
+WORKDIR /app
+
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENV NODE_ENV=development \
+    DEVLOOP_HOST=0.0.0.0 \
+    DEVLOOP_PORT=8787
+
+EXPOSE 8787
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["node", "--watch", "server/index.mjs"]

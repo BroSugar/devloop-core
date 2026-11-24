@@ -1,0 +1,14 @@
+{
+  "name": "devloop-client",
+  "private": true,
+  "packageManager": "pnpm@12.21.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @devloop/web dev",
+    "build": "pnpm --filter @devloop/web build",
+    "preview": "pnpm --filter @devloop/web preview",
+    "clean": "pnpm -r exec node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+  }
+}

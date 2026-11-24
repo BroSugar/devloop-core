@@ -8,4 +8,5 @@ data/
 node_modules/
 *.log
 projects/*/tasks/_graph.json
+client/**/dist/
 .superpowers/
