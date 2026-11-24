@@ -7,3 +7,4 @@ archive/
 node_modules/
 *.log
 projects/*/tasks/_graph.json
+data/

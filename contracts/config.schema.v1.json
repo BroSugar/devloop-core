@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devloop.dev/schemas/project.v1.json",
+  "title": "devloop project config v1",
+  "description": "项目配置 + 平台默认 + 预设的共用形状。服务端合并后校验；客户端只读。schemaVersion 只在破坏性变更时升级，v1 内新增字段一律可选。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "project/v1" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+    "name": { "type": "string", "minLength": 1 },
+    "stack": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "default": "custom" },
+    "repo": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "相对 project.yaml 的路径，或 {{env.NAME}} 插值，或绝对路径"
+        },
+        "branch": { "type": "string", "default": "main" }
+      }
+    },
+    "cards": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["platform", "repo"], "default": "platform" },
+        "specDir": { "type": "string", "default": "spec" },
+        "tasksDir": { "type": "string", "default": "tasks" }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "env": { "type": "object", "additionalProperties": { "type": "string" } },
+        "build": { "$ref": "#/$defs/gate" },
+        "lint": { "$ref": "#/$defs/gate" },
+        "test": { "$ref": "#/$defs/gate" }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "denyWrite": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "禁改路径 glob；平台默认已含 **/*_test.go 与 **/*.test.mjs"
+        },
+        "maxFilesPerTask": { "type": "integer", "minimum": 1, "default": 8 },
+        "maxDiffLines": { "type": "integer", "minimum": 1, "default": 400 },
+        "timeoutMs": { "type": "integer", "minimum": 1000, "default": 600000 },
+        "autonomy": { "enum": ["auto", "assisted", "human-only"], "default": "assisted" }
+      }
+    },
+    "ai": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "routing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "decomposer": { "type": "string" },
+            "implementer": { "type": "string" },
+            "reviewer": { "type": "string" }
+          }
+        }
+      }
+    },
+    "templates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requirement": { "type": "string" },
+        "task": { "type": "string" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "archiveDir": { "type": "string" },
+        "keepRuns": { "type": "integer", "minimum": 1 },
+        "keepFailedForever": { "type": "boolean", "default": true }
+      }
+    }
+  },
+  "required": ["schemaVersion", "id", "stack", "repo"],
+  "$defs": {
+    "gate": {
+      "type": "object",
+      "required": ["command"],
+      "additionalProperties": false,
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "cwd": { "type": "string" },
+        "timeoutMs": { "type": "integer", "minimum": 1000 }
+      }
+    }
+  }
+}

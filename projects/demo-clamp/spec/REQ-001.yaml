@@ -1,0 +1,24 @@
+id: REQ-001
+title: 区间裁剪工具
+status: ready
+autonomy: auto
+owner: demo
+summary: |
+  提供一个纯函数 clamp(value, min, max)：
+  区间内原样返回；越界裁剪到边界；min > max 视为非法区间并报错。
+policy:
+  deny_write:
+    - "**/*.test.mjs"
+acceptance:
+  - id: AC-1
+    text: 区间内原值返回
+    verify_by: src/calc.test.mjs
+  - id: AC-2
+    text: 越界裁剪到边界
+    verify_by: src/calc.test.mjs
+  - id: AC-3
+    text: min > max 时报错
+    verify_by: src/calc.test.mjs
+  - id: AC-4
+    text: 边界值原样返回
+    verify_by: src/calc.test.mjs

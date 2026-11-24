@@ -1,0 +1,14 @@
+# 演示用沙箱项目：验证服务端执行闭环（不参与平台主线）。
+id: demo-clamp
+name: 沙箱 · 区间裁剪
+stack: node-plain
+repo:
+  path: ../../sandboxes/demo
+  branch: main
+cards:
+  mode: platform
+  spec_dir: spec
+  tasks_dir: tasks
+templates:
+  requirement: feature
+  task: feature

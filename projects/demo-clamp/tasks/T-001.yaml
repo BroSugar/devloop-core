@@ -1,0 +1,21 @@
+id: T-001
+title: 实现 clamp
+requirement: REQ-001
+autonomy: auto
+depends_on: []
+objective: |
+  在 src/calc.mjs 实现 clamp：
+  - value 在 [min, max] 内原样返回
+  - 小于 min 返回 min，大于 max 返回 max
+  - min > max 时抛错，错误信息包含「区间」
+  不得修改任何测试文件。
+scope:
+  write:
+    - src/calc.mjs
+  deny:
+    - "**/*.test.mjs"
+acceptance: [AC-1, AC-2, AC-3, AC-4]
+verify:
+  - build
+  - lint
+  - test

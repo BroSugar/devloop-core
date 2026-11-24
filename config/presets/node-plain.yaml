@@ -1,0 +1,10 @@
+gates:
+  build:
+    command: "node --check src/calc.mjs"
+    timeout_ms: 60000
+  lint:
+    command: "node --check src/calc.test.mjs"
+    timeout_ms: 60000
+  test:
+    command: "node src/calc.test.mjs"
+    timeout_ms: 120000

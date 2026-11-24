@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devloop.dev/schemas/agent.v1.json",
+  "title": "devloop agent config + execution policy v1",
+  "description": "服务端下发、客户端只读。客户端可以在本地覆盖 command/model，但触发执行时必须随请求上报 localOverride，由服务端按 policy 判定。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "roles", "policy"],
+  "properties": {
+    "schemaVersion": { "const": "agent/v1" },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decomposer": { "$ref": "#/$defs/role" },
+        "implementer": { "$ref": "#/$defs/role" },
+        "reviewer": { "$ref": "#/$defs/role" }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default": { "type": "string" },
+        "byRole": { "type": "object", "additionalProperties": { "type": "string" } },
+        "byProject": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowNetwork", "allowShell"],
+      "properties": {
+        "allowNetwork": { "type": "boolean", "default": false },
+        "allowShell": { "type": "boolean", "default": true },
+        "allowFileWrite": {
+          "type": "array",
+          "items": { "enum": ["worktree", "workspace", "none"] },
+          "default": ["worktree"]
+        },
+        "maxTokensPerRun": { "type": "integer", "minimum": 0 },
+        "denyGlobs": { "type": "array", "items": { "type": "string" } },
+        "requireHumanApproval": {
+          "type": "array",
+          "items": { "enum": ["auto", "assisted", "human-only"] },
+          "default": ["human-only"]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "role": {
+      "oneOf": [
+        { "$ref": "#/$defs/httpRole" },
+        { "$ref": "#/$defs/cliRole" },
+        { "$ref": "#/$defs/vscodeRole" }
+      ]
+    },
+    "httpRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter", "model"],
+      "properties": {
+        "adapter": { "enum": ["openai-compatible", "anthropic"] },
+        "model": { "type": "string" },
+        "baseUrl": { "type": "string", "format": "uri" },
+        "apiKeyEnv": { "type": "string" },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+        "maxTokens": { "type": "integer", "minimum": 1 },
+        "timeoutMs": { "type": "integer", "minimum": 1000 }
+      }
+    },
+    "cliRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter", "command"],
+      "properties": {
+        "adapter": { "const": "cli" },
+        "command": {
+          "type": "string",
+          "description": "本地命令；prompt 通过 DSH_PROMPT_FILE 传入，stdout 必须是 JSON"
+        },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } },
+        "timeoutMs": { "type": "integer", "minimum": 1000 },
+        "maxRepairs": { "type": "integer", "minimum": 0, "default": 2 }
+      }
+    },
+    "vscodeRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter"],
+      "properties": {
+        "adapter": { "const": "vscode-claude-code" },
+        "mode": {
+          "enum": ["headless-cli", "interactive-uri"],
+          "default": "headless-cli",
+          "description": "headless-cli 可拿结构化输出（推荐）；interactive-uri 只能唤起人工会话"
+        },
+        "command": { "type": "string", "default": "claude" },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "outputFormat": { "enum": ["json", "text"], "default": "json" },
+        "timeoutMs": { "type": "integer", "minimum": 1000 }
+      }
+    }
+  }
+}
