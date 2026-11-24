@@ -1,5 +1,5 @@
-import { StatusBadge } from '../components/ui/badge.jsx';
-import { cn } from '../lib/utils.js';
+import { StatusBadge } from '@devloop/ui';
+import { cn } from '@devloop/ui';
 
 const NODE_W = 168;
 const NODE_H = 64;

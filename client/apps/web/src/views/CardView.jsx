@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card.jsx';
-import { Button } from '../components/ui/button.jsx';
-import { StatusBadge } from '../components/ui/badge.jsx';
-import { FloatingInput, FloatingSelect, FloatingTextarea } from '../components/floating-field.jsx';
+import { Card, CardContent, CardHeader, CardTitle } from '@devloop/ui';
+import { Button } from '@devloop/ui';
+import { StatusBadge } from '@devloop/ui';
+import { FloatingInput, FloatingSelect, FloatingTextarea } from '@devloop/ui';
 
 const toLines = (list) => (list ?? []).join('\n');
 const fromLines = (text) => String(text ?? '').split('\n').map((s) => s.trim()).filter(Boolean);

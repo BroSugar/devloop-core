@@ -1,7 +1,7 @@
-import { Button } from '../components/ui/button.jsx';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card.jsx';
-import { StatusBadge } from '../components/ui/badge.jsx';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.jsx';
+import { Button } from '@devloop/ui';
+import { Card, CardContent, CardHeader, CardTitle } from '@devloop/ui';
+import { StatusBadge } from '@devloop/ui';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@devloop/ui';
 
 const STATE_LABEL = {
   synced: '已同步', db_ahead: 'DB 有改动', file_ahead: '仓库有改动', conflict: '冲突',

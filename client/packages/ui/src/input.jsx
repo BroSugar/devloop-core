@@ -1,4 +1,4 @@
-import { cn } from '../../lib/utils.js';
+import { cn } from './utils.js';
 
 /** 基础输入框。浮动标签由 FloatingField 负责，这里只管外观。 */
 export function Input({ className, ...props }) {

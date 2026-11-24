@@ -1,9 +1,9 @@
 // 浮动标签表单件。规矩：标签在"聚焦或有值"时上浮，空且失焦时占位在字段中央。
 // 用真实 <label htmlFor>，所以点标签也能聚焦；placeholder 只留空位，不显示文字。
 import { useId, useState } from 'react';
-import { Input } from './ui/input.jsx';
-import { Textarea } from './ui/textarea.jsx';
-import { cn } from '../lib/utils.js';
+import { Input } from './input.jsx';
+import { Textarea } from './textarea.jsx';
+import { cn } from './utils.js';
 
 function FloatingLabel({ htmlFor, floated, centerClass, children }) {
   return (

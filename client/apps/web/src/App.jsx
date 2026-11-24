@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, getToken, setToken } from './lib/api.js';
-import { pickAdapter } from './lib/shell.js';
-import { Button } from './components/ui/button.jsx';
-import { Badge } from './components/ui/badge.jsx';
-import { FloatingInput } from './components/floating-field.jsx';
+import { api, getToken, setToken } from '@devloop/api-client';
+import { pickAdapter } from '@devloop/shell';
+import { Button } from '@devloop/ui';
+import { Badge } from '@devloop/ui';
+import { FloatingInput } from '@devloop/ui';
 import { FlowView } from './views/FlowView.jsx';
 import { CardView } from './views/CardView.jsx';
 import { EvidenceView } from './views/EvidenceView.jsx';

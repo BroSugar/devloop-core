@@ -1,5 +1,5 @@
-import { Button } from '../components/ui/button.jsx';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card.jsx';
+import { Button } from '@devloop/ui';
+import { Card, CardContent, CardHeader, CardTitle } from '@devloop/ui';
 
 export function EvidenceView({ evidenceId, kind, sha, content, onBack }) {
   return (

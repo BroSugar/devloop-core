@@ -50,7 +50,7 @@ function readBody(req) {
   });
 }
 
-const CLIENT_DIST = path.join(ROOT, 'client/dist');
+const CLIENT_DIST = path.join(ROOT, 'client/apps/web/dist');
 
 function resolveStatic(pathname) {
   // 统一成正斜杠再做前缀判断：Windows 下 path.normalize 会引入反斜杠，导致静态路由 404

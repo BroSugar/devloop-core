@@ -13,6 +13,28 @@ node server/test/api.test.mjs   # 3. API 契约测试
 
 打开 <http://127.0.0.1:8787/> 就是面板。平台自己不内嵌被管仓库：`repos/` 由 bootstrap 从 `samples/` 生成并 gitignore。
 
+### 前端：pnpm workspace
+
+前端是独立的工作区（`client/`），服务端零依赖不变。
+
+```
+client/
+  pnpm-workspace.yaml
+  apps/web/           Vite + React 应用（views / 路由 / 样式入口）
+  packages/ui/        shadcn 风格基础件 + 浮动标签表单件
+  packages/api-client/ 服务端 API 客户端（唯一出口）
+  packages/shell/     壳适配器契约（browser / tauri，见 contracts/ipc.v1.md）
+```
+
+```bash
+cd client
+pnpm install
+pnpm dev      # 开发：/api 代理到 127.0.0.1:8787
+pnpm build    # 产物 → client/apps/web/dist，服务端直接托管
+```
+
+内部包不单独构建（Vite 直接吃源码），所以改 `packages/ui` 立刻在 `apps/web` 生效；`pnpm --filter <包名>` 可按包操作。
+
 单仓试点见 [`samples/order-cancel-pilot`](samples/order-cancel-pilot/README.md)：它是最早跑通的一条需求，现作为「零迁移接入既有仓库」的样例。
 
 ## 结构

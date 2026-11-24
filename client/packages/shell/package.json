@@ -1,0 +1,9 @@
+{
+  "name": "@devloop/shell",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "sideEffects": false
+}

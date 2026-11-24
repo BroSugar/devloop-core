@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 工作区包里的类名也要被扫描（pnpm 会把 packages 链接进 node_modules，Tailwind 默认跳过那里） */
+@source "../../../packages/ui/src";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
