@@ -1,0 +1,4 @@
+.gocache/
+.gopath/
+/ledger
+/ledger.exe

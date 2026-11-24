@@ -1,0 +1,25 @@
+id: T-0124
+title: HTTP 路由挂载 + 需求级集成（全量测试转绿）
+requirement: REQ-012
+autonomy: auto
+depends_on: [T-0122, T-0123]
+objective: |
+  1) handleRequest(store, {method, path, body})：
+     - POST /orders/:id/cancel -> 委托 cancelOrder，透传 status/body
+     - 未知路由 -> 404
+  2) 作为需求级集成门禁：全量测试套件（contracts + api + web）必须全绿，
+     这是 REQ-012“从需求卡到可运行代码”的最终判据。
+  不得修改任何测试文件。
+scope:
+  write:
+    - apps/api/src/http/routes.mjs
+  read:
+    - apps/api/src/http/routes.test.mjs
+    - apps/api/src/orders/cancel.mjs
+  deny:
+    - "**/*.test.mjs"
+acceptance: [AC-1, AC-3, AC-6]
+verify:
+  - node pipeline/tools/gates/smoke.mjs
+  - node pipeline/tools/gates/lint.mjs
+  - node pipeline/tools/gates/tests.mjs

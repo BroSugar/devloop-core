@@ -1,11 +1,10 @@
-# 被管仓库是外部 checkout，不内嵌进平台仓库（与 CI 的定位一致）
+# 被管仓库是外部 checkout（clone 后由 scripts/bootstrap.mjs 生成），不内嵌
 repos/
 worktrees/
 runs/
 archive/
+data/
 .cache/
 node_modules/
 *.log
 projects/*/tasks/_graph.json
-data/
-sandboxes/

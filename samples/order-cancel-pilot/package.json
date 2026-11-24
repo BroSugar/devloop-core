@@ -1,0 +1,16 @@
+{
+  "name": "order-cancel-pilot",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#contracts/order-cancel": "./packages/contracts/src/order-cancel.mjs"
+  },
+  "scripts": {
+    "plan": "node pipeline/tools/plan.mjs",
+    "task": "node pipeline/tools/run.mjs",
+    "build": "node pipeline/tools/gates/smoke.mjs",
+    "lint": "node pipeline/tools/gates/lint.mjs",
+    "test": "node pipeline/tools/gates/tests.mjs",
+    "verify": "npm run build && npm run lint && npm test"
+  }
+}

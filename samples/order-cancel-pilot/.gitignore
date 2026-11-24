@@ -1,0 +1,5 @@
+node_modules/
+.worktrees/
+pipeline/.runs/
+*.log
+pipeline/tasks/_graph.json

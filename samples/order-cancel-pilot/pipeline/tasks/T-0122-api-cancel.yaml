@@ -1,0 +1,28 @@
+id: T-0122
+title: 订单取消的领域逻辑与库存释放
+requirement: REQ-012
+autonomy: auto
+depends_on: [T-0121]
+objective: |
+  1) createStore()：维护订单、库存占用；addOrder / addReservation / getOrder /
+     available(orderId) / releaseReservation(orderId)（幂等：仅在首次调用时释放）
+  2) cancelOrder(store, {orderId, reason})：
+     - 订单不存在 -> {status:404, body:{code:'ORDER_NOT_FOUND'}}
+     - 原因缺失/非法 -> 400，且不得改动订单状态
+     - 状态不可取消 -> 409 ORDER_NOT_CANCELLABLE，库存不动
+     - PENDING -> 200，状态置 CANCELLED，释放库存；重复取消仍返回 200 且不再释放
+  使 apps/api/src/orders/cancel.test.mjs 全绿。不得修改任何测试文件。
+scope:
+  write:
+    - apps/api/src/orders/cancel.mjs
+    - apps/api/src/orders/store.mjs
+  read:
+    - apps/api/src/orders/cancel.test.mjs
+    - packages/contracts/src/order-cancel.mjs
+  deny:
+    - "**/*.test.mjs"
+acceptance: [AC-1, AC-2, AC-3, AC-4, AC-6]
+verify:
+  - node pipeline/tools/gates/smoke.mjs
+  - node pipeline/tools/gates/lint.mjs
+  - node pipeline/tools/gates/tests.mjs apps/api/src/orders

@@ -3,7 +3,7 @@ id: demo-clamp
 name: 沙箱 · 区间裁剪
 stack: node-plain
 repo:
-  path: ../../sandboxes/demo
+  path: ../../repos/demo-clamp
   branch: main
 cards:
   mode: platform

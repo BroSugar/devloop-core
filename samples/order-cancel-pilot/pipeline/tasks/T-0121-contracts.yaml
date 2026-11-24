@@ -1,0 +1,26 @@
+# 任务卡：机器可读的执行契约。
+# write  = 允许改动的路径（执行期按 git diff 逐文件校验，越界即失败）
+# deny   = 即便落在 write 内也不许改的路径（测试文件是判据，必须与实现解耦）
+# verify = 人可以原样复制到终端跑的命令；跑不过就不算完成
+id: T-0121
+title: 契约包补齐取消订单的枚举、错误码与校验
+requirement: REQ-012
+autonomy: auto
+depends_on: []
+objective: |
+  在 packages/contracts/src/order-cancel.mjs 中补齐契约：
+  1) CANCEL_REASONS 五值枚举：customer_changed_mind / address_error / duplicate_order / payment_issue / other
+  2) CANCELLABLE_STATUSES 与 isCancelableStatus：只有 PENDING 可取消
+  3) CANCEL_ERROR 四个错误码：ORDER_NOT_FOUND / ORDER_NOT_CANCELLABLE / REASON_REQUIRED / REASON_INVALID
+  4) validateCancelRequest：返回 {ok:true, reason} 或 {ok:false, code}
+  不得修改任何测试文件。
+scope:
+  write:
+    - packages/contracts/src/order-cancel.mjs
+  deny:
+    - "**/*.test.mjs"
+acceptance: [AC-7, AC-4, AC-1]
+verify:
+  - node pipeline/tools/gates/smoke.mjs
+  - node pipeline/tools/gates/lint.mjs
+  - node pipeline/tools/gates/tests.mjs packages/contracts

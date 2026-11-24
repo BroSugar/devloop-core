@@ -1,0 +1,25 @@
+id: T-0123
+title: 前端取消按钮的状态机与请求体
+requirement: REQ-012
+autonomy: auto
+depends_on: [T-0121]
+objective: |
+  1) deriveCancelUiState(order) -> {canCancel, label, disabledReason}
+     - PENDING：可取消，disabledReason 为 null
+     - SHIPPED / COMPLETED / CANCELLED：禁用，disabledReason 说明原因（含 发货/完成/取消 语义）
+     - 未知状态：一律禁用（失败即关闭）
+  2) buildCancelPayload(reason)：合法原因 -> {reason}；非法 -> null
+  使 apps/web/src/order-cancel.test.mjs 全绿。不得修改任何测试文件。
+scope:
+  write:
+    - apps/web/src/order-cancel.mjs
+  read:
+    - apps/web/src/order-cancel.test.mjs
+    - packages/contracts/src/order-cancel.mjs
+  deny:
+    - "**/*.test.mjs"
+acceptance: [AC-5, AC-7]
+verify:
+  - node pipeline/tools/gates/smoke.mjs
+  - node pipeline/tools/gates/lint.mjs
+  - node pipeline/tools/gates/tests.mjs apps/web

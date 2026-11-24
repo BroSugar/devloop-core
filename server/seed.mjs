@@ -26,6 +26,10 @@ export function seedAll(store, { log = console.log } = {}) {
       continue;
     }
     const p = cfg.project;
+    if (!fs.existsSync(p.repo_path)) {
+      log(`[seed] 跳过 ${id}：仓库不存在 ${p.repo_path}（先执行 node scripts/bootstrap.mjs）`);
+      continue;
+    }
     store.upsertProject({
       id: p.id, name: p.name, stack: p.stack, repoPath: p.repo_path, defaultBranch: p.branch, cardsMode: p.cards.mode,
     });

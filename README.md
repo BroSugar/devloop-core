@@ -1,9 +1,19 @@
-# devplatform：配置驱动的自动化开发平台
+# devloop-core
 
-把「需求卡 → 任务卡 DAG → 隔离实现 → 统一门禁 → 证据归档」做成**与仓库无关的内核**，
-仓库差异、技术栈差异、AI 供应商差异**全部走配置**。
+配置驱动的自动化开发平台：把「需求卡 → 任务卡 DAG → 隔离实现 → 统一门禁 → 证据归档」做成与仓库无关的内核，
+仓库差异、技术栈差异、AI 供应商差异**全部走配置**。服务端负责 API、存储与执行；客户端（Web / 桌面）只做卡编辑与证据查看。
 
-单仓试点在 [`../order-cancel-pilot`](../order-cancel-pilot/README.md)；本目录是它的平台化形态。
+## 快速开始
+
+```bash
+node scripts/bootstrap.mjs      # 1. 把 samples/ 里的示例仓复制成独立 git 仓库（首次）
+node server/index.mjs           # 2. 启动：http://127.0.0.1:8787 （token: dev-local-token）
+node server/test/api.test.mjs   # 3. API 契约测试
+```
+
+打开 <http://127.0.0.1:8787/> 就是面板。平台自己不内嵌被管仓库：`repos/` 由 bootstrap 从 `samples/` 生成并 gitignore。
+
+单仓试点在 [`../order-cancel-pilot`](../order-cancel-pilot/README.md)（仓库内另有一份 `samples/order-cancel-pilot`）。
 
 ## 结构
 

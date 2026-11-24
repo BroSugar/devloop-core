@@ -1,0 +1,39 @@
+# 需求卡：机器可读的需求契约。
+# 规则：每条验收标准必须带 verify_by 指向一个真实存在的测试文件，
+#       否则 plan.mjs 直接拒绝让这条需求进入流水线。
+id: REQ-012
+title: 订单取消
+status: ready
+autonomy: assisted
+owner: product-李明
+summary: |
+  用户可以在订单发货前取消订单。
+  取消成功后，该订单占用的库存必须被释放，并记录取消原因。
+  重复取消必须幂等：返回成功，但不允许重复释放库存。
+  已发货、已完成的订单不允许取消；前端在不可取消时需要给出禁用原因。
+policy:
+  deny_write:
+    - "**/*.test.mjs"
+    - "pipeline/**"
+acceptance:
+  - id: AC-1
+    text: 未发货(PENDING)订单取消返回 200，订单状态变为 CANCELLED
+    verify_by: apps/api/src/orders/cancel.test.mjs
+  - id: AC-2
+    text: 取消后释放库存占用；重复取消幂等，库存不会被释放两次
+    verify_by: apps/api/src/orders/cancel.test.mjs
+  - id: AC-3
+    text: 已发货(SHIPPED)/已完成(COMPLETED)订单不可取消，返回 409 且库存不动
+    verify_by: apps/api/src/orders/cancel.test.mjs
+  - id: AC-4
+    text: 必须携带合法取消原因，缺失/非法返回 400
+    verify_by: apps/api/src/orders/cancel.test.mjs
+  - id: AC-5
+    text: 前端仅对 PENDING 展示可取消，其余状态禁用并给出原因
+    verify_by: apps/web/src/order-cancel.test.mjs
+  - id: AC-6
+    text: 订单不存在返回 404
+    verify_by: apps/api/src/orders/cancel.test.mjs
+  - id: AC-7
+    text: 取消原因枚举与错误码收敛在 contracts 包，前后端共用同一份
+    verify_by: packages/contracts/src/order-cancel.test.mjs

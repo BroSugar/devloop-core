@@ -3,7 +3,7 @@ id: order-cancel
 name: 订单取消（单仓 pilot）
 stack: node-esm
 repo:
-  path: ../../../order-cancel-pilot
+  path: ../../repos/order-cancel-pilot
   branch: main
 cards:
   mode: repo
