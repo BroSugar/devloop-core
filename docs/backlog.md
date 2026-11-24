@@ -15,6 +15,7 @@
 3. 审核通过后才允许上传云平台。
 
 **约束**：**不插队**。等前端这一轮落完并合并后，再按 brainstorming 流程走设计（设计文档 → 计划 → 实施）。
+**状态**：前端这一轮已合并并推送，约束条件已满足，可以开始设计。
 
 **设计前需要明确的点**（留给 brainstorming）：
 - "标准文档"的判定口径：检查清单、打分阈值，还是人审签字？
@@ -23,7 +24,7 @@
 - 云平台上传的接口形态与幂等性、失败回退、版本留痕；
 - 证据链：审核记录是否进 `evidence`，是否需要可追溯。
 
-## 已知问题与阻塞判定（更新于 2026-11-24 收口后）
+## 已知问题与阻塞判定（更新于 2026-11-24 视觉验收后）
 
 判定口径：**阻塞** = 不解决就无法宣称"这一轮落完"。
 
@@ -31,21 +32,32 @@
 
 | # | 问题 | 解决方式 |
 | --- | --- | --- |
-| 1 | CI 不构建前端，前端坏了 CI 也绿 | `ci.yml` 增加 `pnpm --dir client install --frozen-lockfile` + `pnpm --dir client build`；契约测试新增断言钉住 |
-| 2 | 前端产物未在 CI 干净环境验证 | 同上；本地已验证 frozen-lockfile 安装（reused 38 / downloaded 0）与构建可复现 |
-| 3 | 多条工作线未合并 | `ci/contract-workflow`、`feat/shadcn-ui`、`feat/postgres` 依次合入 `main` |
-| 4 | 数据库切换后 CI 缺 PG 与后端依赖 | `ci.yml` 增加 `services: postgres:18` + healthcheck + `npm --prefix server ci` + `DATABASE_URL` |
-| 5 | 容器内 health 显示 `runs=0` 与预期不一致 | 随数据库切换到 PostgreSQL 自然失效：旧现象源于 SQLite 文件/WAL 可见性，现已不存在 |
+| 1 | CI 不构建前端，前端坏了 CI 也绿 | `ci.yml` 增加前端安装与构建；契约测试断言钉住 |
+| 2 | 前端产物未在 CI 干净环境验证 | 同上；本地 frozen-lockfile 安装（reused 38 / downloaded 0） |
+| 3 | 多条工作线未合并 | 三条分支依次 `--no-ff` 合入 `main` 并推送 |
+| 4 | 数据库切换后 CI 缺 PG 与后端依赖 | `services: postgres:18` + `npm --prefix server ci` + `DATABASE_URL` |
+| 5 | 容器内 `runs=0` 与预期不一致 | 随数据库切 PG 自然失效（原为 SQLite 文件/WAL 可见性） |
+| 6 | 界面没有浏览器里的视觉与交互验收 | `tools/visual`（playwright-core + 系统 Chrome）：**17 项断言全绿**，5 张截图；验收中发现并修复 3 个缺陷（见下） |
+
+### 视觉验收发现并修复的缺陷
+
+| 缺陷 | 复现断言 | 修复 |
+| --- | --- | --- |
+| 流程节点重复显示任务 id（`T-001 | ready | T-001`） | `任务节点不重复显示 id` | 去掉冗余 span |
+| 门禁名称泄漏内部命名（`cmd3`） | `门禁名称不暴露内部命名（cmdN）` | 后端裸命令改名 `custom`；UI 映射「自定义命令」，历史数据兜底 |
+| 流程连线对比度过低 | 人工目检 | 描边改为 `muted-foreground/60`、1.75px |
 
 ### 未解决（不阻塞收口）
 
 | # | 问题 | 归属 | 处理 |
 | --- | --- | --- | --- |
-| 6 | 界面/交互只做了构建与资源可达验证，没有浏览器里的视觉与交互验收 | `client/apps/web` | 需要人打开页面看一眼，或后续补 Playwright 冒烟 |
-| 7 | `node:24-alpine` 镜像拉取过慢，正式镜像从未构建 | `docker/` | 网络可用时跑 `docker compose up api --build` |
-| 8 | 契约测试 minor：缺少 `permissions` 最小权限；守卫正则偏松 | `server/test/ci-contract.test.mjs` | 排期处理 |
-| 9 | 本地 `npm run verify` 现在依赖 PG | 开发环境 | 先 `npm run db:up`（或 `docker compose up -d postgres`）；可考虑加 `--if-missing` 的自动检测 |
-| 10 | PRD 审核环节（见上） | 待排期 | 等这一轮合并稳定后走 brainstorming |
+| 7 | `node:24-alpine` 镜像拉取过慢，正式镜像从未构建 | `docker/` | 网络可用时 `docker compose up api --build` |
+| 8 | 契约测试 minor：缺 `permissions` 最小权限；守卫正则偏松 | `server/test/ci-contract.test.mjs` | 排期处理 |
+| 9 | 本地 `npm run verify` 依赖 PG 已起 | 开发环境 | `npm run db:up`；可考虑加自动检测 |
+| 10 | 路由是组件内 state，不是 URL：刷新回到流程视图，无法深链分享 | `client/apps/web` | 排期（加 hash 路由 + 深链） |
+| 11 | 流程画布在节点少时留白过大，无缩放/居中 | `client/apps/web` | 排期（fit-to-content / 缩放控件） |
+| 12 | 证据链中 0 字节日志（空输出）仍占一行 | `client/apps/web` | 排期（标注"空输出"或折叠） |
+| 13 | PRD 审核环节（见上） | 待排期 | 前端已收口，可开始 brainstorming |
 
 ## 流程约定：缺陷回归
 
@@ -53,7 +65,7 @@
 
 1. 先写一个能稳定复现失败的测试（红），并在本地确认它确实因为该缺陷而失败；
 2. 最小改动修复，测试转绿；
-3. 跑全量回归（`npm run verify` + 前端构建）确认没有连带破坏；
+3. 跑全量回归（`npm run verify` + 前端构建 + `tools/visual` 视觉验收）确认没有连带破坏；
 4. 记录：缺陷一句话 + 复现测试名 + 修复提交。
 
 阻塞级缺陷当轮修完才允许合并；非阻塞缺陷登记进本文件的"已知问题"表，排期处理。

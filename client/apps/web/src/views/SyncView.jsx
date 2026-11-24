@@ -66,7 +66,7 @@ export function SyncView({ project, report, busy, lastResult, onExport, onImport
                 <TableRow key={`${i.kind}:${i.id}`}>
                   <TableCell className="text-xs">{i.kind === 'requirement' ? '需求' : '任务'}</TableCell>
                   <TableCell className="text-xs"><code>{i.id}</code></TableCell>
-                  <TableCell><StatusBadge status={i.state} label={STATE_LABEL[i.state] || i.state} /></TableCell>
+                  <TableCell><StatusBadge status={i.state} data-testid="sync-state" label={STATE_LABEL[i.state] || i.state} /></TableCell>
                   <TableCell className="text-xs">{ACTION_LABEL[i.action] || i.action}</TableCell>
                   <TableCell className="text-[11px] text-muted-foreground">{i.path}</TableCell>
                   <TableCell className="text-[11px] text-muted-foreground">{short(i.dbSha)}</TableCell>

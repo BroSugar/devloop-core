@@ -1,0 +1,12 @@
+{
+  "name": "@devloop/visual-check",
+  "private": true,
+  "type": "module",
+  "description": "本地视觉验收：用系统 Chrome 跑真实交互并截图（不进 CI，避免下载浏览器）",
+  "scripts": {
+    "check": "node check.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.65.1"
+  }
+}

@@ -7,6 +7,10 @@ import { FloatingInput, FloatingSelect, FloatingTextarea } from '@devloop/ui';
 const toLines = (list) => (list ?? []).join('\n');
 const fromLines = (text) => String(text ?? '').split('\n').map((s) => s.trim()).filter(Boolean);
 
+// 门禁阶段名对用户友好化；历史数据里残留的 cmdN 内部命名也在这里兜住
+const STAGE_LABEL = { build: '构建', lint: '静态检查', test: '测试', custom: '自定义命令' };
+const stageLabel = (name) => STAGE_LABEL[name] || (/^cmd\d+$/.test(name) ? '自定义命令' : name);
+
 function initial(task) {
   return {
     title: task.title,
@@ -89,7 +93,7 @@ export function CardView({ task, requirement, runs, run, evidence, busy, hint, o
                     <ul className="space-y-1 text-xs">
                       {run.stages.map((s) => (
                         <li key={s.seq} className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1">
-                          <span>{s.name}</span>
+                          <span>{stageLabel(s.name)}</span>
                           <code className="text-[11px] text-muted-foreground">{s.command}</code>
                           <span className={s.exitCode === 0 ? 'text-success' : 'text-danger'}>{s.exitCode ?? '-'}</span>
                         </li>
@@ -105,7 +109,8 @@ export function CardView({ task, requirement, runs, run, evidence, busy, hint, o
             <CardHeader><CardTitle>证据链（{evidence?.length ?? 0}）</CardTitle></CardHeader>
             <CardContent className="space-y-1">
               {evidence?.length ? evidence.map((e) => (
-                <button key={e.id} type="button" onClick={() => onOpenEvidence(e.id, e.kind)}
+                <button key={e.id} type="button" data-testid="evidence-item" data-kind={e.kind}
+                  onClick={() => onOpenEvidence(e.id, e.kind)}
                   className="flex w-full items-center justify-between gap-2 rounded border border-border px-2 py-1 text-left text-xs hover:bg-muted/40">
                   <span>{e.kind}</span>
                   <code className="text-[11px] text-muted-foreground">{e.sha256.slice(0, 12)}…</code>

@@ -28,9 +28,9 @@ const TONE_BY_STATUS = {
   db_only: 'warning', file_only: 'warning', untracked: 'danger',
 };
 
-export function StatusBadge({ status, label, className }) {
+export function StatusBadge({ status, label, className, ...props }) {
   return (
-    <Badge tone={TONE_BY_STATUS[status] || 'neutral'} className={className}>
+    <Badge tone={TONE_BY_STATUS[status] || 'neutral'} className={className} {...props}>
       {label || status}
     </Badge>
   );

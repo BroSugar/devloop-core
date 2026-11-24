@@ -38,8 +38,8 @@ export function FlowView({ panel, project, onOpenTask }) {
               d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`}
               fill="none"
               stroke="currentColor"
-              className="text-border"
-              strokeWidth="1.5"
+              className="text-muted-foreground/60"
+              strokeWidth="1.75"
             />
           );
         })}
@@ -49,6 +49,7 @@ export function FlowView({ panel, project, onOpenTask }) {
         <button
           key={node.id}
           type="button"
+          data-testid={node.kind === 'task' ? 'task-node' : 'req-node'}
           onClick={() => node.taskId && onOpenTask(node.taskId)}
           style={{ left: node.x, top: node.y, width: NODE_W, height: NODE_H }}
           className={cn(
@@ -62,9 +63,6 @@ export function FlowView({ panel, project, onOpenTask }) {
           </span>
           <div className="flex items-center justify-between gap-2">
             <StatusBadge status={node.status} />
-            {node.kind === 'task' ? (
-              <span className="text-[10px] text-muted-foreground">{node.taskId}</span>
-            ) : null}
           </div>
         </button>
       ))}

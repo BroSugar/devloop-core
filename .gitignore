@@ -10,3 +10,4 @@ node_modules/
 projects/*/tasks/_graph.json
 client/**/dist/
 .superpowers/
+tools/visual/out/

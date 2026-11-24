@@ -160,7 +160,7 @@ export default function App() {
         <div className="flex items-center gap-1">
           <Badge tone="info">{caps.kind}</Badge>
           {['fs', 'term', 'agent'].map((c) => (
-            <Badge key={c} tone={caps.available.includes(c) ? 'success' : 'neutral'}>{c}</Badge>
+            <Badge key={c} data-testid="cap-chip" tone={caps.available.includes(c) ? 'success' : 'neutral'}>{c}</Badge>
           ))}
         </div>
 

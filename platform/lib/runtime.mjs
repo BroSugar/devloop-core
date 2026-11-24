@@ -188,7 +188,7 @@ export function resolveVerify(cfg, refs, baseDir = cfg.project.repo_path) {
     if (typeof gate === 'string') {
       return { name: ref, command: gate, cwd: baseDir, env: baseEnv, timeout_ms: cfg.policy?.timeout_ms ?? 600000 };
     }
-    return { name: `cmd${i + 1}`, command: String(ref), cwd: baseDir, env: baseEnv, timeout_ms: cfg.policy?.timeout_ms ?? 600000 };
+    return { name: 'custom', command: String(ref), cwd: baseDir, env: baseEnv, timeout_ms: cfg.policy?.timeout_ms ?? 600000 };
   });
 }
 
