@@ -43,6 +43,8 @@ await page.locator('header select').selectOption('ledger-cli');
 await page.waitForSelector('[data-testid=task-node]:has-text("T-101")', { timeout: 15000 });
 const nodes2 = await page.locator('[data-testid=task-node]').count();
 check('切换项目后 DAG 重新渲染', nodes2 >= 3, `tasks=${nodes2}`);
+const edgeCount = await page.locator('.react-flow__edge').count();
+check('流程连线渲染', edgeCount >= 3, `edges=${edgeCount}`);
 
 // ---------- 3. 卡详情 ----------
 await page.locator('[data-testid=task-node]', { hasText: 'T-101' }).first().click();
