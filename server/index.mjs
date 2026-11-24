@@ -7,6 +7,7 @@ import { seedAll } from './seed.mjs';
 import { createServer } from './http.mjs';
 
 const port = Number(process.env.DEVLOOP_PORT ?? 8787);
+const host = process.env.DEVLOOP_HOST ?? '127.0.0.1';
 const token = process.env.DEVLOOP_TOKEN ?? 'dev-local-token';
 
 const db = openDb(process.env.DEVLOOP_DB);
@@ -19,8 +20,8 @@ console.log('[server] 同步 projects/ 与 archive/ …');
 seedAll(store);
 
 const server = createServer({ store, token });
-server.listen(port, '127.0.0.1', () => {
-  console.log(`[server] devloop API v1 on http://127.0.0.1:${port}`);
+server.listen(port, host, () => {
+  console.log(`[server] devloop API v1 on http://${host}:${port}`);
   console.log(`[server] token: ${token}`);
   console.log(`[server] 面板：http://127.0.0.1:${port}/`);
 });

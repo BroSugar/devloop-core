@@ -1,0 +1,2 @@
+﻿# 容器内执行的脚本必须是 LF，否则 Linux 报 bad interpreter
+*.sh text eol=lf

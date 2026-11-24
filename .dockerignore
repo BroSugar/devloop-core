@@ -1,0 +1,13 @@
+.git
+.gitignore
+.superpowers
+docs/superpowers
+data
+repos
+worktrees
+runs
+archive
+.cache
+**/node_modules
+client/**/dist
+*.log

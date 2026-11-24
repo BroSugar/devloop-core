@@ -1,0 +1,52 @@
+name: devloop-core
+
+services:
+  # 开发：后端进容器（node --watch 热重启），前端仍在宿主机跑 pnpm dev
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    image: devloop-core:dev
+    ports:
+      # 只发布到本机回环，避免默认把带 token 的接口暴露到局域网
+      - "127.0.0.1:${DEVLOOP_PORT:-8787}:8787"
+    environment:
+      DEVLOOP_HOST: 0.0.0.0
+      DEVLOOP_PORT: "8787"
+      DEVLOOP_TOKEN: "${DEVLOOP_TOKEN:-dev-local-token}"
+    volumes:
+      # 源码与运行时产物（data/ repos/ worktrees/ archive/）都用宿主机目录，便于直接看证据
+      - ./:/app
+    working_dir: /app
+    command: ["node", "--watch", "server/index.mjs"]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8787/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # 生产镜像（本地验证部署形态）：docker compose --profile prod up --build
+  api-prod:
+    profiles: ["prod"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: devloop-core:latest
+    ports:
+      - "127.0.0.1:${PROD_PORT:-8788}:8787"
+    environment:
+      DEVLOOP_HOST: 0.0.0.0
+      DEVLOOP_TOKEN: "${DEVLOOP_TOKEN:-dev-local-token}"
+    volumes:
+      # 生产形态下 data 用命名卷持久化（repos/ 由镜像内的 samples 生成）
+      - devloop-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  devloop-data:
