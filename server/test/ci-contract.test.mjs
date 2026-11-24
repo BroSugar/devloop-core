@@ -47,3 +47,34 @@ test('workflow：执行入口就是本地那条命令', () => {
   assert.match(yml, /npm run verify/);
   assert.doesNotMatch(yml, /node server\/test\/api\.test\.mjs/, '命令顺序只在 package.json 里定义一次');
 });
+
+// 结构性断言：`on:` 块里的过滤条件必须挂在 push 上，且 pull_request 不得带过滤。
+// 纯文本断言漏掉的正是这个场景——在 pull_request 下加 `branches: [master]` 会让发往 main 的 PR 静默不触发。
+function onBlock(yml) {
+  const lines = yml.split('\n');
+  const start = lines.findIndex((l) => /^on:\s*$/.test(l));
+  assert.notEqual(start, -1, '缺少顶层 on: 块');
+  const block = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^\S/.test(lines[i])) break;
+    block.push(lines[i]);
+  }
+  return block;
+}
+
+function nested(block, key) {
+  const idx = block.findIndex((l) => new RegExp(`^ {2}${key}:`).test(l));
+  if (idx < 0) return null;
+  const out = [];
+  for (let i = idx + 1; i < block.length && /^ {4}\S/.test(block[i]); i++) {
+    if (block[i].trim() !== '') out.push(block[i].trim());
+  }
+  return out;
+}
+
+test('workflow：触发条件挂在 push 上，pull_request 不带过滤', () => {
+  const block = onBlock(read('.github/workflows/ci.yml'));
+  assert.deepEqual(nested(block, 'push'), ['branches: [main]'], 'push 必须且只能过滤 main');
+  assert.deepEqual(nested(block, 'pull_request'), [], 'pull_request 不得有 branches/types 过滤，否则 PR 静默不触发');
+});
+
