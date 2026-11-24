@@ -50,16 +50,21 @@ function readBody(req) {
   });
 }
 
+const CLIENT_DIST = path.join(ROOT, 'client/dist');
+
 function resolveStatic(pathname) {
-  if (pathname === '/' || pathname === '') return path.join(ROOT, 'client/web/index.html');
   // 统一成正斜杠再做前缀判断：Windows 下 path.normalize 会引入反斜杠，导致静态路由 404
   const safe = pathname.replace(/\\/g, '/').replace(/^\/+/, '');
   if (safe.includes('..')) return null;
+
+  // 契约文件保持原样可下载（/contracts/agent.schema.v1.json 等由 API 直接引用）
   if (safe.startsWith('contracts/')) return path.join(ROOT, safe);
-  if (safe.startsWith('web/') || safe.startsWith('views/') || safe.startsWith('shell/')) {
-    return path.join(ROOT, 'client', safe);
-  }
-  return null;
+
+  // Vite 构建产物；未命中具体文件时回落到 index.html（SPA 路由）
+  const candidate = path.join(CLIENT_DIST, safe === '' ? 'index.html' : safe);
+  if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
+  const index = path.join(CLIENT_DIST, 'index.html');
+  return fs.existsSync(index) ? index : null;
 }
 
 export function createServer({ store, token }) {

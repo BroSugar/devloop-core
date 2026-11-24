@@ -1,7 +1,7 @@
 // 壳 ↔ 视图 的适配器契约（见 contracts/ipc.v1.md）。
 // 视图只认这个对象，不认 window / fetch / __TAURI__。能力缺失时抛 E_UNSUPPORTED，视图降级。
 
-const unsupportedCapability = (kind) => {
+export const unsupportedCapability = (kind) => {
   const thrower = () => {
     const err = new Error(`E_UNSUPPORTED: ${kind}`);
     err.code = 'E_UNSUPPORTED';
