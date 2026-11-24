@@ -85,8 +85,8 @@ check('证据视图：正文非空', preLen > 20, `${preLen} 字符`);
 await shot('04-evidence.png');
 
 // ---------- 6. 卡同步视图 ----------
-await page.getByText('← 返回卡').click();
-await page.getByText('← 返回流程').click();
+await page.getByText('返回卡').click();
+await page.getByText('返回流程').click();
 await page.getByRole('button', { name: /卡同步/ }).click();
 await page.getByText('卡同步 ·', { exact: false }).first().waitFor({ timeout: 8000 });
 const rows = await page.locator('table tbody tr').count();

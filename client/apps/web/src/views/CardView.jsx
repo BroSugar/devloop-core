@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@devloop/ui';
 import { Button } from '@devloop/ui';
 import { StatusBadge } from '@devloop/ui';
 import { FloatingInput, FloatingSelect, FloatingTextarea } from '@devloop/ui';
+import { ArrowLeft, Play, Save, FileText } from 'lucide-react';
 
 const toLines = (list) => (list ?? []).join('\n');
 const fromLines = (text) => String(text ?? '').split('\n').map((s) => s.trim()).filter(Boolean);
@@ -34,11 +35,11 @@ export function CardView({ task, requirement, runs, run, evidence, busy, hint, o
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onBack}>← 返回流程</Button>
+            <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="size-3.5" aria-hidden="true" />返回流程</Button>
             <StatusBadge status={task.status} />
             <span className="text-xs text-muted-foreground">v{task.version} · {requirement.id} · {task.id}</span>
           </div>
-          <h2 className="mt-2 text-lg font-semibold">{task.title}</h2>
+          <h2 className="mt-2 flex items-center gap-2 text-lg font-semibold"><FileText className="size-5 text-muted-foreground" aria-hidden="true" />{task.title}</h2>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -48,10 +49,10 @@ export function CardView({ task, requirement, runs, run, evidence, busy, hint, o
             title={task.autonomy === 'human-only' ? '自治等级为 human-only，必须人工执行' : ''}
             onClick={onRun}
           >
-            运行（服务端执行）
+            <Play className="size-3.5" aria-hidden="true" />运行（服务端执行）
           </Button>
           <Button size="sm" disabled={busy || !dirty} onClick={() => onSave(form)}>
-            {dirty ? '保存修改' : '无改动'}
+            <Save className="size-3.5" aria-hidden="true" />{dirty ? '保存修改' : '无改动'}
           </Button>
         </div>
       </div>

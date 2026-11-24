@@ -8,8 +8,10 @@ import { FlowView } from './views/FlowView.jsx';
 import { CardView } from './views/CardView.jsx';
 import { EvidenceView } from './views/EvidenceView.jsx';
 import { SyncView } from './views/SyncView.jsx';
+import { Workflow, GitCompareArrows, KeyRound, Folder, Terminal, Bot } from 'lucide-react';
 
 const lines = (text) => String(text ?? '').split('\n').map((s) => s.trim()).filter(Boolean);
+const CAP_ICONS = { fs: Folder, term: Terminal, agent: Bot };
 
 export default function App() {
   const [caps, setCaps] = useState({ kind: 'unknown', available: [] });
@@ -143,7 +145,8 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
-        <div className="text-sm font-semibold">
+        <div className="flex items-center gap-1.5 text-sm font-semibold">
+          <Workflow className="size-4 text-primary" aria-hidden="true" />
           devloop <span className="text-[11px] font-normal text-muted-foreground">v1</span>
         </div>
 
@@ -159,25 +162,31 @@ export default function App() {
 
         <div className="flex items-center gap-1">
           <Badge tone="info">{caps.kind}</Badge>
-          {['fs', 'term', 'agent'].map((c) => (
-            <Badge key={c} data-testid="cap-chip" tone={caps.available.includes(c) ? 'success' : 'neutral'}>{c}</Badge>
-          ))}
+          {['fs', 'term', 'agent'].map((c) => {
+            const CapIcon = CAP_ICONS[c];
+            return (
+              <Badge key={c} data-testid="cap-chip" tone={caps.available.includes(c) ? 'success' : 'neutral'} className="gap-1">
+                <CapIcon className="size-3" aria-hidden="true" />{c}
+              </Badge>
+            );
+          })}
         </div>
 
         <div className="ml-auto flex items-center gap-2">
           <Button variant={view.name === 'flow' ? 'subtle' : 'ghost'} size="sm" onClick={() => setView({ name: 'flow' })}>
-            流程视图
+            <Workflow className="size-3.5" aria-hidden="true" />流程视图
           </Button>
           <Button variant={view.name === 'sync' ? 'subtle' : 'ghost'} size="sm" onClick={() => setView({ name: 'sync' })}>
-            卡同步{conflicts > 0 ? ` ⚠${conflicts}` : ''}
+            <GitCompareArrows className="size-3.5" aria-hidden="true" />卡同步{conflicts > 0 ? ` ⚠${conflicts}` : ''}
           </Button>
-          <div className="w-52">
+          <div className="relative w-52">
+            <KeyRound className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <FloatingInput
               label="访问令牌"
               value={token}
               onChange={(e) => setTokenValue(e.target.value)}
               onBlur={() => { if (token !== getToken()) { setToken(token); location.reload(); } }}
-              className="h-11 pt-4"
+              className="h-11 pl-9 pt-4"
             />
           </div>
         </div>
