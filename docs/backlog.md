@@ -14,8 +14,7 @@
 2. 再按"标准文档"规范做审核；
 3. 审核通过后才允许上传云平台。
 
-**约束**：**不插队**。等前端这一轮（shadcn/ui + pnpm workspace + 容器化）落完并合并后，
-再按 brainstorming 流程走设计（设计文档 → 计划 → 实施），不在当前分支上动。
+**约束**：**不插队**。等前端这一轮落完并合并后，再按 brainstorming 流程走设计（设计文档 → 计划 → 实施）。
 
 **设计前需要明确的点**（留给 brainstorming）：
 - "标准文档"的判定口径：检查清单、打分阈值，还是人审签字？
@@ -24,20 +23,29 @@
 - 云平台上传的接口形态与幂等性、失败回退、版本留痕；
 - 证据链：审核记录是否进 `evidence`，是否需要可追溯。
 
-## 已知问题与阻塞判定（截至 2026-11-24）
+## 已知问题与阻塞判定（更新于 2026-11-24 收口后）
 
-判定口径：**阻塞** = 不解决就无法宣称"前端这一轮落完"；**不阻塞** = 可进待排期，不影响当轮收口。
+判定口径：**阻塞** = 不解决就无法宣称"这一轮落完"。
 
-| # | 问题 | 归属 | 阻塞前端这轮？ | 处理 |
-| --- | --- | --- | --- | --- |
-| 1 | CI 只跑服务端契约测试，**不构建前端**，前端构建坏了 CI 也全绿 | `.github/workflows/ci.yml` | **是**（结构性） | 合入 CI 分支后加 `pnpm --dir client install --frozen-lockfile && pnpm --dir client build` |
-| 2 | 前端产物从未在 CI 的干净环境里验证过（本地 `pnpm install` 成功≠CI 成功） | `client/` | **是** | 同上，靠 CI 的 frozen-lockfile 安装证明 |
-| 3 | 四条工作线未合并：`ci/contract-workflow`(7)、`feat/shadcn-ui`(10)、本地 `main` 领先 origin 2 | git | **是** | 按 ci → feat → 推送 main 的顺序收口 |
-| 4 | 界面/交互只做了构建与资源可达验证，**没有浏览器里的视觉与交互验收** | `client/apps/web` | 阻塞"验收"，不阻塞"合并" | 需要人打开页面看一眼（或补 Playwright 冒烟） |
-| 5 | `node:24-alpine` 镜像拉取失败（约 19 KiB/s），正式镜像从未构建 | `docker/` | 否（部署侧） | 网络可用时跑一次 `docker compose up api --build` |
-| 6 | 契约测试 4 项 minor：无 `permissions`、未断言 `runs-on`、守卫正则偏松、README 未指向 `npm run verify` | `server/test/ci-contract.test.mjs` | 否 | 进待排期 |
-| 7 | 容器内 health 显示 `runs=0`，与宿主机库不预期一致（同一 WAL 文件已确认，但数据可见性未查清） | `server/` + docker | 否（联调前需查清） | 立缺陷：先写复现测试再改 |
-| 8 | `.gitignore` 在两个分支上都加了 `.superpowers/`，合并时会冲突 | git | 否 | 合并时手工解决（同内容取一侧） |
+### 已解决
+
+| # | 问题 | 解决方式 |
+| --- | --- | --- |
+| 1 | CI 不构建前端，前端坏了 CI 也绿 | `ci.yml` 增加 `pnpm --dir client install --frozen-lockfile` + `pnpm --dir client build`；契约测试新增断言钉住 |
+| 2 | 前端产物未在 CI 干净环境验证 | 同上；本地已验证 frozen-lockfile 安装（reused 38 / downloaded 0）与构建可复现 |
+| 3 | 多条工作线未合并 | `ci/contract-workflow`、`feat/shadcn-ui`、`feat/postgres` 依次合入 `main` |
+| 4 | 数据库切换后 CI 缺 PG 与后端依赖 | `ci.yml` 增加 `services: postgres:18` + healthcheck + `npm --prefix server ci` + `DATABASE_URL` |
+| 5 | 容器内 health 显示 `runs=0` 与预期不一致 | 随数据库切换到 PostgreSQL 自然失效：旧现象源于 SQLite 文件/WAL 可见性，现已不存在 |
+
+### 未解决（不阻塞收口）
+
+| # | 问题 | 归属 | 处理 |
+| --- | --- | --- | --- |
+| 6 | 界面/交互只做了构建与资源可达验证，没有浏览器里的视觉与交互验收 | `client/apps/web` | 需要人打开页面看一眼，或后续补 Playwright 冒烟 |
+| 7 | `node:24-alpine` 镜像拉取过慢，正式镜像从未构建 | `docker/` | 网络可用时跑 `docker compose up api --build` |
+| 8 | 契约测试 minor：缺少 `permissions` 最小权限；守卫正则偏松 | `server/test/ci-contract.test.mjs` | 排期处理 |
+| 9 | 本地 `npm run verify` 现在依赖 PG | 开发环境 | 先 `npm run db:up`（或 `docker compose up -d postgres`）；可考虑加 `--if-missing` 的自动检测 |
+| 10 | PRD 审核环节（见上） | 待排期 | 等这一轮合并稳定后走 brainstorming |
 
 ## 流程约定：缺陷回归
 

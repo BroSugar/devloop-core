@@ -8,10 +8,34 @@ on:
 jobs:
   contract:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: devloop
+          POSTGRES_PASSWORD: devloop
+          POSTGRES_DB: devloop
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U devloop -d devloop"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://devloop:devloop@127.0.0.1:5432/devloop
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: 后端依赖（仅 pg）
+        run: npm --prefix server ci
+      - name: 启用 pnpm
+        run: corepack enable
+      - name: 前端依赖与构建
+        run: |
+          pnpm --dir client install --frozen-lockfile
+          pnpm --dir client build
       - name: 契约测试（与本地同一条命令）
         run: npm run verify

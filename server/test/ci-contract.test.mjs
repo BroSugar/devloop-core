@@ -9,16 +9,16 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
 
-test('package.json：零依赖、Node 24 下限、三条脚本', () => {
+test('package.json：Node 24 下限、pnpm 锁定、根不引依赖', () => {
   const pkg = JSON.parse(read('package.json'));
   assert.equal(pkg.private, true);
   assert.match(pkg.engines.node, />=\s*24/);
-  assert.equal(pkg.dependencies, undefined, '不得引入 npm 依赖');
-  assert.equal(pkg.devDependencies, undefined, '不得引入 npm 依赖');
-  assert.equal(pkg.scripts.bootstrap, 'node scripts/bootstrap.mjs');
-  assert.match(pkg.scripts.test, /api\.test\.mjs/);
-  assert.match(pkg.scripts.test, /cardsync\.test\.mjs/);
-  assert.match(pkg.scripts.test, /ci-contract\.test\.mjs/);
+  assert.match(pkg.packageManager, /^pnpm@/);
+  assert.equal(pkg.dependencies, undefined, '根 package.json 不得引入依赖（依赖归各 workspace/子包）');
+  assert.equal(pkg.devDependencies, undefined, '根 package.json 不得引入依赖');
+  for (const s of ['bootstrap', 'test', 'verify', 'client:build', 'server:install']) {
+    assert.ok(pkg.scripts[s], `缺少脚本 ${s}`);
+  }
 });
 
 test('package.json：verify 里 bootstrap 必须先于测试', () => {
@@ -31,25 +31,6 @@ test('package.json：verify 里 bootstrap 必须先于测试', () => {
   );
 });
 
-test('workflow：PR 与 main push 触发，且只有两个官方 action', () => {
-  const yml = read('.github/workflows/ci.yml');
-  assert.match(yml, /^on:/m);
-  assert.match(yml, /pull_request:/);
-  assert.match(yml, /branches:\s*\[\s*main\s*\]/);
-  const actions = [...yml.matchAll(/uses:\s*(\S+)/g)].map((m) => m[1]).sort();
-  assert.deepEqual(actions, ['actions/checkout@v4', 'actions/setup-node@v4']);
-  assert.match(yml, /node-version:\s*['"]?24['"]?/);
-  assert.doesNotMatch(yml, /npm (ci|install)/, '零依赖仓库不应有安装步骤');
-});
-
-test('workflow：执行入口就是本地那条命令', () => {
-  const yml = read('.github/workflows/ci.yml');
-  assert.match(yml, /npm run verify/);
-  assert.doesNotMatch(yml, /node server\/test\/api\.test\.mjs/, '命令顺序只在 package.json 里定义一次');
-});
-
-// 结构性断言：`on:` 块里的过滤条件必须挂在 push 上，且 pull_request 不得带过滤。
-// 纯文本断言漏掉的正是这个场景——在 pull_request 下加 `branches: [master]` 会让发往 main 的 PR 静默不触发。
 function onBlock(yml) {
   const lines = yml.split('\n');
   const start = lines.findIndex((l) => /^on:\s*$/.test(l));
@@ -78,3 +59,22 @@ test('workflow：触发条件挂在 push 上，pull_request 不带过滤', () =>
   assert.deepEqual(nested(block, 'pull_request'), [], 'pull_request 不得有 branches/types 过滤，否则 PR 静默不触发');
 });
 
+test('workflow：只用两个官方 action、固定 ubuntu + Node 24', () => {
+  const yml = read('.github/workflows/ci.yml');
+  const actions = [...yml.matchAll(/^\s*-\s+uses:\s*(\S+)/gm)].map((m) => m[1]).sort();
+  assert.deepEqual(actions, ['actions/checkout@v4', 'actions/setup-node@v4']);
+  assert.match(yml, /runs-on:\s*ubuntu-latest/);
+  assert.match(yml, /node-version:\s*['"]24['"]/);
+});
+
+test('workflow：起 PG、装后端依赖、构建前端、再跑同一条 verify', () => {
+  const yml = read('.github/workflows/ci.yml');
+  assert.match(yml, /^\s{4}services:/m, '必须声明 services');
+  assert.match(yml, /image:\s*postgres:18/, 'CI 需要 PostgreSQL 18');
+  assert.match(yml, /pg_isready/, '等待数据库健康');
+  assert.match(yml, /DATABASE_URL:\s*postgres:\/\//, '注入数据库连接');
+  assert.match(yml, /npm --prefix server ci/, '后端依赖必须安装');
+  assert.match(yml, /pnpm --dir client install --frozen-lockfile/, '前端依赖必须按锁文件安装');
+  assert.match(yml, /pnpm --dir client build/, '前端必须构建（否则前端坏了 CI 也绿）');
+  assert.match(yml, /npm run verify/, '最终跑与本地一致的入口');
+});

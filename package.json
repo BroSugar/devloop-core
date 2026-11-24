@@ -1,11 +1,16 @@
 {
   "name": "devloop-core",
   "private": true,
+  "packageManager": "pnpm@12.21.0",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
     "bootstrap": "node scripts/bootstrap.mjs",
+    "db:up": "docker compose up -d postgres",
+    "server:install": "npm --prefix server ci",
+    "client:install": "pnpm --dir client install --frozen-lockfile",
+    "client:build": "pnpm --dir client build",
     "test": "node server/test/api.test.mjs && node server/test/cardsync.test.mjs && node server/test/ci-contract.test.mjs",
     "verify": "npm run bootstrap && npm test"
   }
