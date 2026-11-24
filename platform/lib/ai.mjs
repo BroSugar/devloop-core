@@ -1,4 +1,4 @@
-// AI 接入层：provider / agent 全部配置化，内核不出现任何模型名。
+﻿// AI 接入层：provider / agent 全部配置化，内核不出现任何模型名。
 //
 // 三种 provider 形态：
 //   openai-compatible  统一 /chat/completions，覆盖 OpenAI 及绝大多数国产兼容端点
@@ -52,12 +52,12 @@ export function buildRequest({ agent, provider, system, user }) {
   const temperature = agent.temperature ?? 0.2;
   const maxTokens = agent.max_tokens ?? 4096;
   const model = provider.model || agent.model;
-  if (!model) throw new Error(`provider 未配置 model，且 agent 未覆盖`);
   const keyVar = provider.api_key_env;
   const apiKey = keyVar ? process.env[keyVar] : undefined;
 
   switch (provider.kind) {
     case 'openai-compatible':
+      if (!model) throw new Error('provider 未配置 model，且 agent 未覆盖');
       return {
         kind: 'http',
         method: 'POST',

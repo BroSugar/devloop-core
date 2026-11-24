@@ -113,6 +113,12 @@ export function prepareWorktree(cfg, taskId, { fresh = false } = {}) {
       : `worktree add -b ${branch} "${wt}" ${cfg.project.branch}`;
     const r = git(repo, cmd);
     if (r.exitCode !== 0) throw new Error(`创建 worktree 失败：${r.err || r.out}`);
+  } else if (!fresh) {
+    // 基线刷新：worktree 干净且没有本地提交时，对齐到最新基线。
+    // 执行顺序规范是“依赖合并后再 prepare”，这条兜底防止拿着陈旧基线跑验证。
+    const dirty = changedFiles(wt).length;
+    const ahead = Number(git(wt, `rev-list --count ${cfg.project.branch}..HEAD`).out.trim() || '0');
+    if (!dirty && ahead === 0) git(wt, `reset --hard ${cfg.project.branch}`);
   }
   return { wt, branch };
 }
@@ -164,26 +170,25 @@ export function resetTo(cfg, sha) {
 /**
  * 把卡里的 verify 引用解析成可执行阶段。
  * 引用命中配置里的 gate 名（build/lint/test/...）就用统一门禁定义，否则当作裸命令。
- * 这是“统一门禁 + 允许单卡定向”的接缝。
+ * baseDir 决定命令在哪个工作区执行：任务验证必须指向隔离 worktree，合并后复验指向主仓。
  */
-export function resolveVerify(cfg, refs) {
+export function resolveVerify(cfg, refs, baseDir = cfg.project.repo_path) {
   const baseEnv = { ...(cfg.platform?.env || {}), ...(cfg.gates?.env || {}) };
-  const repo = cfg.project.repo_path;
   return (refs || []).map((ref, i) => {
     const gate = cfg.gates?.[ref];
     if (gate && typeof gate === 'object' && gate.command) {
       return {
         name: ref,
         command: gate.command,
-        cwd: gate.cwd ? path.resolve(repo, gate.cwd) : repo,
+        cwd: gate.cwd ? path.resolve(baseDir, gate.cwd) : baseDir,
         env: { ...baseEnv, ...(gate.env || {}) },
         timeout_ms: gate.timeout_ms ?? cfg.policy?.timeout_ms ?? 600000,
       };
     }
     if (typeof gate === 'string') {
-      return { name: ref, command: gate, cwd: repo, env: baseEnv, timeout_ms: cfg.policy?.timeout_ms ?? 600000 };
+      return { name: ref, command: gate, cwd: baseDir, env: baseEnv, timeout_ms: cfg.policy?.timeout_ms ?? 600000 };
     }
-    return { name: `cmd${i + 1}`, command: String(ref), cwd: repo, env: baseEnv, timeout_ms: cfg.policy?.timeout_ms ?? 600000 };
+    return { name: `cmd${i + 1}`, command: String(ref), cwd: baseDir, env: baseEnv, timeout_ms: cfg.policy?.timeout_ms ?? 600000 };
   });
 }
 

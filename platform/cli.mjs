@@ -19,7 +19,7 @@ import {
   ensureRepo, prepareWorktree, changedFiles, diffText, commitAll, mergeInto, resetTo,
   resolveVerify, runVerify, git,
 } from './lib/runtime.mjs';
-import { checkChanges, checkBudget } from './lib/policy.mjs';
+import { checkChanges, checkBudget, matchesAny } from './lib/policy.mjs';
 import { archiveRun, readIndex, verifyArchive } from './lib/evidence.mjs';
 import { loadAi, resolveAgent, buildRequest, describe, promptPath } from './lib/ai.mjs';
 import { instantiate, listTemplates } from './lib/template.mjs';
@@ -290,6 +290,20 @@ function cmdRun(projectId, taskId) {
   };
 
   if (!changed.length) {
+    // 目标文件被 .gitignore 忽略时不会出现在 diff 里，会静默绕过写域检查 —— 必须显式拦下
+    const ignoredEntries = git(wt, 'status --porcelain=v1 -uall --ignored=matching').out
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('!! '))
+      .map((line) => line.slice(3).trim().replace(/^"|"$/g, '').replace(/\\/g, '/'));
+    const ignoredInScope = ignoredEntries.filter((entry) => {
+      const base = entry.replace(/\/$/, '');
+      if (matchesAny(base, card.scope.write)) return true;
+      return (card.scope.write || []).some((w) => w.startsWith(`${base}/`));
+    });
+    if (ignoredInScope.length) {
+      for (const file of ignoredInScope) info(`  x 目标路径被 .gitignore 忽略，不会进入 diff：${file}`);
+      return finish({ verdict: 'fail', reason: `.gitignore 屏蔽了写域路径（${ignoredInScope.join(', ')}）` });
+    }
     info('  x 没有任何变更，任务未产生实现');
     return finish({ verdict: 'fail', reason: '没有变更' });
   }
@@ -302,7 +316,7 @@ function cmdRun(projectId, taskId) {
     return finish({ verdict: 'fail', reason: `写域/预算校验失败：${violations.length + budgets.length} 项` });
   }
 
-  const stages = resolveVerify(cfg, card.verify);
+  const stages = resolveVerify(cfg, card.verify, wt);
   const { verdict, stages: results } = runVerify(stages, { runDir });
   for (const s of results) {
     info(`  ${s.exitCode === 0 ? 'ok  ' : 'FAIL'} ${s.command}  (${s.ms}ms)`);
@@ -323,7 +337,7 @@ function cmdRun(projectId, taskId) {
     return finish({ verdict: 'fail', reason: '合并失败', stages: results });
   }
   const head = git(cfg.project.repo_path, 'rev-parse HEAD').out.trim();
-  const full = runVerify(resolveVerify(cfg, card.verify), { runDir: path.join(runDir, 'merge-verify') });
+  const full = runVerify(resolveVerify(cfg, card.verify, cfg.project.repo_path), { runDir: path.join(runDir, 'merge-verify') });
   for (const s of full.stages) {
     info(`  ${s.exitCode === 0 ? 'ok  ' : 'FAIL'} (主仓) ${s.command}`);
     if (s.exitCode !== 0) info(s.tail.split('\n').map((l) => `        ${l}`).join('\n'));
