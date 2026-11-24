@@ -166,5 +166,7 @@ export function interpolate(obj, vars) {
 }
 
 export function resolve(cfg) {
-  return interpolate({ ...cfg, vars: undefined }, cfg.vars);
+  const { vars, ...rest } = cfg;
+  const interpolated = interpolate(rest, vars);
+  return { ...interpolated, vars };
 }

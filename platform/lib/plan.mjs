@@ -157,13 +157,21 @@ export function planProject(cfg) {
     }
   }
 
-  // 7. 写域是否覆盖了禁改文件（真实拦截在执行期 diff）
+  // 7. 写域是否覆盖了禁改文件（真实拦截在执行期 diff；这里只报确定性的重叠）
   const deny = cfg.policy?.deny_write || [];
+  const denyHits = (glob) => {
+    if (!/[*?]/.test(glob)) return deny.filter((d) => matchesAny(glob, [d]));
+    const p = staticPrefix(glob);
+    if (!p) return [];
+    return deny.filter((d) => {
+      const dp = staticPrefix(d);
+      return !!dp && (p === dp || p.startsWith(`${dp}/`) || dp.startsWith(`${p}/`));
+    });
+  };
   for (const card of taskCards) {
     for (const glob of card.scope?.write || []) {
-      if (deny.some((d) => mayOverlap(glob, d))) {
-        warn(`${card.id}: 写域 ${glob} 与禁改规则可能重叠，执行期按 diff 拦截`);
-      }
+      const hits = denyHits(glob);
+      if (hits.length) warn(`${card.id}: 写域 ${glob} 命中禁改规则 ${hits.join(', ')}，执行期会按 diff 拦截`);
     }
   }
 
