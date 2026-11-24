@@ -1,4 +1,5 @@
 // API v1：路由与业务判定。派生状态全部在这里算完，客户端只渲染。
+// PostgreSQL 时代：handler 与 handle 都是 async。
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,7 +10,6 @@ import { validateCards } from './pipeline/validate.mjs';
 import { executeRun } from './pipeline/execute.mjs';
 
 const ok = (data, extra = {}) => ({ status: 200, data, ...extra });
-const created = (data) => ({ status: 201, data });
 const accepted = (data) => ({ status: 202, data });
 const notFound = (message = '资源不存在') => ({ status: 404, error: { code: 'not_found', message } });
 const badRequest = (message, details) => ({ status: 400, error: { code: 'bad_request', message, details } });
@@ -24,32 +24,33 @@ function parseIfMatch(value) {
 }
 
 function gateView(store, projectId) {
-  const cfg = store.latestConfig(projectId);
-  const resolved = cfg?.resolved?.gates || {};
-  const sources = cfg?.sources || {};
-  const out = {};
-  for (const name of ['build', 'lint', 'test']) {
-    const gate = resolved[name];
-    out[name] = {
-      command: typeof gate === 'string' ? gate : gate?.command ?? null,
-      source: sources[`gates.${name}.command`] || 'unknown',
-      timeoutMs: typeof gate === 'object' ? gate?.timeout_ms ?? null : null,
-    };
-  }
-  return out;
+  return store.latestConfig(projectId).then((cfg) => {
+    const resolved = cfg?.resolved?.gates || {};
+    const sources = cfg?.sources || {};
+    const out = {};
+    for (const name of ['build', 'lint', 'test']) {
+      const gate = resolved[name];
+      out[name] = {
+        command: typeof gate === 'string' ? gate : gate?.command ?? null,
+        source: sources[`gates.${name}.command`] || 'unknown',
+        timeoutMs: typeof gate === 'object' ? gate?.timeout_ms ?? null : null,
+      };
+    }
+    return out;
+  });
 }
 
-function projectView(store, project) {
-  return { ...project, gates: gateView(store, project.id), stats: store.projectStats(project.id) };
+async function projectView(store, project) {
+  return { ...project, gates: await gateView(store, project.id), stats: await store.projectStats(project.id) };
 }
 
-function buildFlow(store, requirements) {
+async function buildFlow(store, requirements) {
   const nodes = [];
   const edges = [];
   let cursor = 40;
 
   for (const req of requirements) {
-    const dag = store.computeDag(req.id);
+    const dag = await store.computeDag(req.id);
     const layerCount = Math.max(1, dag.layers.length);
     nodes.push({
       id: `req:${req.id}`, kind: 'requirement', label: `${req.id} · ${req.title}`,
@@ -64,12 +65,8 @@ function buildFlow(store, requirements) {
         y: cursor + index * 92,
       });
     });
-    for (const id of dag.layers[0] || []) {
-      edges.push({ from: `req:${req.id}`, to: `task:${id}` });
-    }
-    for (const edge of dag.edges) {
-      edges.push({ from: `task:${edge.from}`, to: `task:${edge.to}` });
-    }
+    for (const id of dag.layers[0] || []) edges.push({ from: `req:${req.id}`, to: `task:${id}` });
+    for (const edge of dag.edges) edges.push({ from: `task:${edge.from}`, to: `task:${edge.to}` });
     cursor += layerCount * 92 + 120;
   }
   return { nodes, edges };
@@ -77,120 +74,118 @@ function buildFlow(store, requirements) {
 
 export function createApi({ store }) {
   const routes = [
-    { method: 'GET', pattern: /^\/api\/v1\/health$/, auth: false, fn: () => ok({
+    { method: 'GET', pattern: /^\/api\/v1\/health$/, fn: async () => ok({
       status: 'ok',
-      db: 'sqlite',
+      db: 'postgres',
       version: '1.0.0',
-      counts: {
-        projects: store.listProjects().length,
-        requirements: store.db.prepare('SELECT COUNT(*) AS n FROM requirements').get().n,
-        tasks: store.db.prepare('SELECT COUNT(*) AS n FROM tasks').get().n,
-        runs: store.db.prepare('SELECT COUNT(*) AS n FROM runs').get().n,
-        evidence: store.db.prepare('SELECT COUNT(*) AS n FROM evidence').get().n,
-      },
+      counts: await store.counts(),
     }) },
 
-    { method: 'GET', pattern: /^\/api\/v1\/projects$/, fn: () => ok(store.listProjects().map((p) => projectView(store, p))) },
+    { method: 'GET', pattern: /^\/api\/v1\/projects$/, fn: async () => {
+      const projects = await store.listProjects();
+      const out = [];
+      for (const p of projects) out.push(await projectView(store, p));
+      return ok(out);
+    } },
 
-    { method: 'POST', pattern: /^\/api\/v1\/projects$/, fn: ({ body }) => {
+    { method: 'POST', pattern: /^\/api\/v1\/projects$/, fn: async ({ body }) => {
       if (!body?.id) return badRequest('缺少 id');
       const dir = path.join(PLATFORM_ROOT, 'projects', body.id, 'project.yaml');
       if (!fs.existsSync(dir)) return badRequest(`配置不存在：projects/${body.id}/project.yaml（配置权威来源是 Git）`);
       return badRequest('v1 的项目接入走「Git 里的 project.yaml + 重启导入」；在线注册留到 v1.1');
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)$/, fn: ({ params }) => {
-      const project = store.getProject(params[0]);
-      return project ? ok(projectView(store, project)) : notFound('项目不存在');
+    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)$/, fn: async ({ params }) => {
+      const project = await store.getProject(params[0]);
+      return project ? ok(await projectView(store, project)) : notFound('项目不存在');
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)\/config$/, fn: ({ params }) => {
-      const cfg = store.latestConfig(params[0]);
+    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)\/config$/, fn: async ({ params }) => {
+      const cfg = await store.latestConfig(params[0]);
       return cfg ? ok(cfg) : notFound('配置快照不存在');
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)\/requirements$/, fn: ({ params }) => {
-      if (!store.getProject(params[0])) return notFound('项目不存在');
-      return ok(store.listRequirements(params[0]));
+    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)\/requirements$/, fn: async ({ params }) => {
+      if (!(await store.getProject(params[0]))) return notFound('项目不存在');
+      return ok(await store.listRequirements(params[0]));
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)\/panel$/, fn: ({ params, query }) => {
-      const project = store.getProject(params[0]);
+    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)\/panel$/, fn: async ({ params, query }) => {
+      const project = await store.getProject(params[0]);
       if (!project) return notFound('项目不存在');
-      const requirements = store.listRequirements(project.id);
+      const requirements = await store.listRequirements(project.id);
       return ok({
         projectId: project.id,
         generatedAt: new Date().toISOString(),
         requirements: requirements.map((r) => ({
           id: r.id, title: r.title, status: r.status, tasks: r.stats.tasks, passed: r.stats.passed,
         })),
-        flow: buildFlow(store, requirements),
-        events: store.listEvents({ projectId: project.id, since: Number(query.since ?? 0), limit: 20 }),
+        flow: await buildFlow(store, requirements),
+        events: await store.listEvents({ projectId: project.id, since: Number(query.since ?? 0), limit: 20 }),
       });
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/requirements\/([^/]+)$/, fn: ({ params }) => {
-      const req = store.getRequirement(params[0]);
+    { method: 'GET', pattern: /^\/api\/v1\/requirements\/([^/]+)$/, fn: async ({ params }) => {
+      const req = await store.getRequirement(params[0]);
       if (!req) return notFound('需求不存在');
       return ok(req, { headers: { ETag: `"v${req.version}"` } });
     } },
 
-    { method: 'PUT', pattern: /^\/api\/v1\/requirements\/([^/]+)$/, fn: ({ params, body, headers }) => {
+    { method: 'PUT', pattern: /^\/api\/v1\/requirements\/([^/]+)$/, fn: async ({ params, body, headers }) => {
       if (!body) return badRequest('缺少请求体');
-      const guard = parseIfMatch(headers['if-match']);
-      const result = store.updateRequirement(params[0], body, guard);
+      const result = await store.updateRequirement(params[0], body, parseIfMatch(headers['if-match']));
       if (result.error === 'not_found') return notFound('需求不存在');
       if (result.error === 'conflict') return conflict('版本冲突，请重新拉取后编辑', [`current version = ${result.current.version}`]);
-      store.addEvent({ kind: 'card.updated', requirementId: params[0], payload: { resource: 'requirement' } });
+      await store.addEvent({ kind: 'card.updated', requirementId: params[0], payload: { resource: 'requirement' } });
       return ok(result.data, { headers: { ETag: `"v${result.data.version}"` } });
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/requirements\/([^/]+)\/dag$/, fn: ({ params }) => {
-      const req = store.getRequirement(params[0]);
+    { method: 'GET', pattern: /^\/api\/v1\/requirements\/([^/]+)\/dag$/, fn: async ({ params }) => {
+      const req = await store.getRequirement(params[0]);
       if (!req) return notFound('需求不存在');
-      const dag = store.computeDag(req.id);
-      const project = store.getProject(req.projectId);
-      const tasks = store.listTasks(req.id);
-      const config = store.latestConfig(req.projectId)?.resolved;
+      const dag = await store.computeDag(req.id);
+      const project = await store.getProject(req.projectId);
+      const tasks = await store.listTasks(req.id);
+      const config = (await store.latestConfig(req.projectId))?.resolved;
       const validation = validateCards({ requirement: req, tasks, project, config, dag });
       return ok({ ...dag, validated: validation.ok, validationErrors: validation.errors, validationWarnings: validation.warnings });
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/tasks\/([^/]+)$/, fn: ({ params }) => {
-      const task = store.getTask(params[0]);
+    { method: 'GET', pattern: /^\/api\/v1\/tasks\/([^/]+)$/, fn: async ({ params }) => {
+      const task = await store.getTask(params[0]);
       if (!task) return notFound('任务不存在');
       return ok(task, { headers: { ETag: `"v${task.version}"` } });
     } },
 
-    { method: 'PUT', pattern: /^\/api\/v1\/tasks\/([^/]+)$/, fn: ({ params, body, headers }) => {
+    { method: 'PUT', pattern: /^\/api\/v1\/tasks\/([^/]+)$/, fn: async ({ params, body, headers }) => {
       if (!body) return badRequest('缺少请求体');
-      const guard = parseIfMatch(headers['if-match']);
-      const result = store.updateTask(params[0], body, guard);
+      const result = await store.updateTask(params[0], body, parseIfMatch(headers['if-match']));
       if (result.error === 'not_found') return notFound('任务不存在');
       if (result.error === 'conflict') return conflict('版本冲突，请重新拉取后编辑', [`current version = ${result.current.version}`]);
-      store.addEvent({ kind: 'card.updated', taskId: params[0], payload: { resource: 'task' } });
+      await store.addEvent({ kind: 'card.updated', taskId: params[0], payload: { resource: 'task' } });
       return ok(result.data, { headers: { ETag: `"v${result.data.version}"` } });
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/tasks\/([^/]+)\/runs$/, fn: ({ params }) => {
-      if (!store.getTask(params[0])) return notFound('任务不存在');
-      return ok(store.listRuns(params[0]));
+    { method: 'GET', pattern: /^\/api\/v1\/tasks\/([^/]+)\/runs$/, fn: async ({ params }) => {
+      if (!(await store.getTask(params[0]))) return notFound('任务不存在');
+      return ok(await store.listRuns(params[0]));
     } },
 
-    { method: 'POST', pattern: /^\/api\/v1\/tasks\/([^/]+)\/runs$/, fn: ({ params, body }) => {
-      const task = store.getTask(params[0]);
+    { method: 'POST', pattern: /^\/api\/v1\/tasks\/([^/]+)\/runs$/, fn: async ({ params, body }) => {
+      const task = await store.getTask(params[0]);
       if (!task) return notFound('任务不存在');
       if (task.autonomy === 'human-only') return policyDenied('任务自治等级为 human-only，必须人工执行');
-      const requirement = store.getRequirement(task.requirementId);
-      const project = store.getProject(requirement.projectId);
-      const config = store.latestConfig(project.id)?.resolved;
-      const dag = store.computeDag(requirement.id);
-      const validation = validateCards({ requirement, tasks: store.listTasks(requirement.id), project, config, dag });
+
+      const requirement = await store.getRequirement(task.requirementId);
+      const project = await store.getProject(requirement.projectId);
+      const config = (await store.latestConfig(project.id))?.resolved;
+      const dag = await store.computeDag(requirement.id);
+      const validation = validateCards({ requirement, tasks: await store.listTasks(requirement.id), project, config, dag });
       if (!validation.ok) return validationFailed(validation.errors);
 
       const override = body?.localOverride;
       if (override) {
-        const profiles = store.listAgentProfiles(project.id);
+        const profiles = await store.listAgentProfiles(project.id);
         const allowed = profiles.some((p) => p.adapter === override.adapter || p.role === 'implementer');
         if (!allowed) return policyDenied(`执行策略不允许 adapter=${override.adapter}`);
         if (override.adapter === 'openai-compatible' || override.adapter === 'anthropic') {
@@ -198,22 +193,22 @@ export function createApi({ store }) {
         }
       }
 
-      const run = executeRun(store, { projectId: project.id, taskId: task.id, actor: body?.actor || 'api' });
+      const run = await executeRun(store, { projectId: project.id, taskId: task.id, actor: body?.actor || 'api' });
       return accepted(run);
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/runs\/([^/]+)$/, fn: ({ params }) => {
-      const run = store.getRun(params[0]);
+    { method: 'GET', pattern: /^\/api\/v1\/runs\/([^/]+)$/, fn: async ({ params }) => {
+      const run = await store.getRun(params[0]);
       return run ? ok(run) : notFound('执行记录不存在');
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/runs\/([^/]+)\/evidence$/, fn: ({ params }) => {
-      if (!store.getRun(params[0])) return notFound('执行记录不存在');
-      return ok(store.listEvidence(params[0]));
+    { method: 'GET', pattern: /^\/api\/v1\/runs\/([^/]+)\/evidence$/, fn: async ({ params }) => {
+      if (!(await store.getRun(params[0]))) return notFound('执行记录不存在');
+      return ok(await store.listEvidence(params[0]));
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/evidence\/([^/]+)\/content$/, raw: true, fn: ({ params }) => {
-      const ev = store.getEvidence(params[0]);
+    { method: 'GET', pattern: /^\/api\/v1\/evidence\/([^/]+)\/content$/, raw: true, fn: async ({ params }) => {
+      const ev = await store.getEvidence(params[0]);
       if (!ev) return notFound('证据不存在');
       const file = path.join(DATA_DIR, ev.relPath);
       if (!fs.existsSync(file)) return notFound('证据文件缺失');
@@ -224,13 +219,13 @@ export function createApi({ store }) {
       };
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)\/card-sync$/, fn: ({ params }) => {
-      const project = store.getProject(params[0]);
+    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)\/card-sync$/, fn: async ({ params }) => {
+      const project = await store.getProject(params[0]);
       if (!project) return notFound('项目不存在');
-      const config = store.latestConfig(project.id)?.resolved;
+      const config = (await store.latestConfig(project.id))?.resolved;
       if (!config) return notFound('配置快照不存在');
       try {
-        const state = computeSyncState(store, project, config);
+        const state = await computeSyncState(store, project, config);
         return ok({
           projectId: project.id,
           summary: state.summary,
@@ -244,13 +239,13 @@ export function createApi({ store }) {
       }
     } },
 
-    { method: 'POST', pattern: /^\/api\/v1\/projects\/([^/]+)\/card-sync\/export$/, fn: ({ params, body }) => {
-      const project = store.getProject(params[0]);
+    { method: 'POST', pattern: /^\/api\/v1\/projects\/([^/]+)\/card-sync\/export$/, fn: async ({ params, body }) => {
+      const project = await store.getProject(params[0]);
       if (!project) return notFound('项目不存在');
-      const config = store.latestConfig(project.id)?.resolved;
+      const config = (await store.latestConfig(project.id))?.resolved;
       if (!config) return notFound('配置快照不存在');
       try {
-        return ok(exportCards(store, project, config, {
+        return ok(await exportCards(store, project, config, {
           dryRun: !!body?.dryRun,
           ids: body?.ids,
           prefer: body?.prefer === 'force' ? 'force' : 'safe',
@@ -260,31 +255,31 @@ export function createApi({ store }) {
       }
     } },
 
-    { method: 'POST', pattern: /^\/api\/v1\/projects\/([^/]+)\/card-sync\/import$/, fn: ({ params, body }) => {
-      const project = store.getProject(params[0]);
+    { method: 'POST', pattern: /^\/api\/v1\/projects\/([^/]+)\/card-sync\/import$/, fn: async ({ params, body }) => {
+      const project = await store.getProject(params[0]);
       if (!project) return notFound('项目不存在');
-      const config = store.latestConfig(project.id)?.resolved;
+      const config = (await store.latestConfig(project.id))?.resolved;
       if (!config) return notFound('配置快照不存在');
       try {
-        const result = importCards(store, project, config, {
+        const result = await importCards(store, project, config, {
           dryRun: !!body?.dryRun, ids: body?.ids, prefer: body?.prefer === 'force' ? 'force' : 'safe',
         });
-        for (const req of store.listRequirements(project.id)) store.recomputeStatuses(req.id);
+        for (const req of await store.listRequirements(project.id)) await store.recomputeStatuses(req.id);
         return ok(result);
       } catch (e) {
         return badRequest(`导入失败：${e.message}`);
       }
     } },
-    { method: 'GET', pattern: /^\/api\/v1\/agent-config$/, fn: ({ query }) => {
-      const projectId = query.projectId || store.listProjects()[0]?.id;
+
+    { method: 'GET', pattern: /^\/api\/v1\/agent-config$/, fn: async ({ query }) => {
+      const projectId = query.projectId || (await store.listProjects())[0]?.id;
       if (!projectId) return notFound('没有已注册项目');
-      const profiles = store.listAgentProfiles(projectId);
+      const profiles = await store.listAgentProfiles(projectId);
       const roles = {};
       for (const p of profiles) {
         roles[p.role] ??= { adapter: p.adapter, model: p.model ?? undefined, command: p.command ?? undefined };
       }
-      const project = store.getProject(projectId);
-      const cfg = store.latestConfig(projectId)?.resolved;
+      const cfg = (await store.latestConfig(projectId))?.resolved;
       return ok({
         schemaVersion: 'agent/v1',
         schemaUrl: '/contracts/agent.schema.v1.json',
@@ -303,7 +298,7 @@ export function createApi({ store }) {
       });
     } },
 
-    { method: 'GET', pattern: /^\/api\/v1\/events$/, fn: ({ query }) => ok(store.listEvents({
+    { method: 'GET', pattern: /^\/api\/v1\/events$/, fn: async ({ query }) => ok(await store.listEvents({
       projectId: query.projectId,
       since: Number(query.since ?? 0),
       limit: Math.min(Number(query.limit ?? 100), 500),
@@ -312,14 +307,14 @@ export function createApi({ store }) {
 
   return {
     routes,
-    handle({ method, pathname, query, body, headers }) {
+    async handle({ method, pathname, query, body, headers }) {
       for (const route of routes) {
         if (route.method !== method) continue;
         const m = pathname.match(route.pattern);
         if (!m) continue;
         const params = m.slice(1).map((p) => decodeURIComponent(p));
         try {
-          return route.fn({ params, query, body, headers });
+          return await route.fn({ params, query, body, headers });
         } catch (e) {
           if (e.code === 'not_found') return notFound(e.message);
           if (e.code === 'conflict') return conflict(e.message);

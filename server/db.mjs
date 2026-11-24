@@ -1,8 +1,9 @@
-// SQLite 连接与迁移。存储模型的唯一事实来源是 contracts/db.v1.sql。
+// PostgreSQL 连接与迁移。存储模型的唯一事实来源是 contracts/db.v1.sql。
+// 与 SQLite 时代的区别：全部 API 变成异步，调用方（store/api/seed）都必须 await。
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import pg from 'pg';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -11,32 +12,47 @@ export const EVIDENCE_DIR = path.join(DATA_DIR, 'evidence');
 
 export const now = () => new Date().toISOString();
 
-export function openDb(file = path.join(DATA_DIR, 'devloop.db')) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
-  const db = new DatabaseSync(file);
-  db.exec('PRAGMA journal_mode = WAL;');
-  db.exec('PRAGMA foreign_keys = ON;');
-  return db;
+export const DEFAULT_DATABASE_URL =
+  process.env.DATABASE_URL ?? 'postgres://devloop:devloop@127.0.0.1:5432/devloop';
+
+export function createPool(overrides = {}) {
+  return new pg.Pool({
+    connectionString: DEFAULT_DATABASE_URL,
+    max: 10,
+    // 启动时 PG 可能还在初始化，给一点重试余地
+    connectionTimeoutMillis: 10_000,
+    ...overrides,
+  });
 }
 
-export function migrate(db) {
+export async function migrate(pool) {
   const schema = fs.readFileSync(path.join(ROOT, 'contracts/db.v1.sql'), 'utf8');
-  db.exec(schema);
-  db.prepare('INSERT OR REPLACE INTO schema_meta(key, value) VALUES (?, ?)').run('schema', 'v1');
-  db.prepare('INSERT OR REPLACE INTO schema_meta(key, value) VALUES (?, ?)').run('migratedAt', now());
+  await pool.query(schema);
+  await pool.query(
+    `INSERT INTO schema_meta(key, value) VALUES ('schema', 'v1'), ('migratedAt', $1)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    [now()],
+  );
+  fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
 }
 
-export function transaction(db, fn) {
-  db.exec('BEGIN');
+/** 在一个连接上跑事务；回调收到 client，必须用它发查询。 */
+export async function withTransaction(pool, fn) {
+  const client = await pool.connect();
   try {
-    const out = fn();
-    db.exec('COMMIT');
+    await client.query('BEGIN');
+    const out = await fn(client);
+    await client.query('COMMIT');
     return out;
   } catch (e) {
-    db.exec('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     throw e;
+  } finally {
+    client.release();
   }
 }
+
+// PG 的 COUNT(*) 返回 bigint → 驱动给字符串，统一转数字，避免统计变成 "3"
+export const num = (v) => (v === null || v === undefined ? 0 : Number(v));
 
 export const apiVersion = 'v1';

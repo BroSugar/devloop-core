@@ -1,23 +1,22 @@
 // API 契约冒烟测试：真实起 HTTP，覆盖鉴权、信封、DAG、自足的执行闭环、证据哈希、乐观锁、策略拦截。
 // 不依赖预先导入的 archive：执行闭环自己跑一遍，保证干净 clone 也能通过。
+// PostgreSQL：每个测试文件用独立数据库。
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { openDb, migrate, ROOT } from '../db.mjs';
+import { ROOT } from '../db.mjs';
 import { Store } from '../store.mjs';
 import { seedAll } from '../seed.mjs';
 import { createServer } from '../http.mjs';
+import { createTestDb } from './pg-util.mjs';
 
 const TOKEN = 'test-token';
-const tmpDb = path.join(os.tmpdir(), `devloop-test-${Date.now()}.db`);
-const db = openDb(tmpDb);
-migrate(db);
-const store = new Store(db);
-seedAll(store, { log: () => {} });
+const db = await createTestDb('api');
+const store = new Store(db.pool);
+await seedAll(store, { log: () => {} });
 
 const server = createServer({ store, token: TOKEN });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -34,11 +33,9 @@ async function api(method, p, { body, headers = {} } = {}) {
   return { status: res.status, json, headers: res.headers };
 }
 
-test.after(() => {
+test.after(async () => {
   try { server.close(); } catch { /* 已关闭 */ }
-  for (const file of [tmpDb, `${tmpDb}-wal`, `${tmpDb}-shm`]) {
-    try { fs.rmSync(file, { force: true }); } catch { /* Windows 上 WAL 可能仍被占用 */ }
-  }
+  await db.drop();
 });
 
 test('health 不需要鉴权，且带信封', async () => {
@@ -46,8 +43,10 @@ test('health 不需要鉴权，且带信封', async () => {
   const body = await res.json();
   assert.equal(res.status, 200);
   assert.equal(body.data.status, 'ok');
+  assert.equal(body.data.db, 'postgres');
   assert.equal(body.meta.apiVersion, 'v1');
   assert.ok(body.meta.requestId);
+  assert.equal(typeof body.data.counts.tasks, 'number');
 });
 
 test('缺少 token 返回 401 + unauthorized', async () => {
@@ -86,21 +85,22 @@ test('面板坐标与状态全部来自服务端', async () => {
 test('ETag 乐观锁：版本不匹配返回 409', async () => {
   const task = await api('GET', '/api/v1/tasks/T-001');
   assert.equal(task.headers.get('etag'), '"v1"');
-  const conflict = await api('PUT', '/api/v1/tasks/T-001', {
+  const conflictRes = await api('PUT', '/api/v1/tasks/T-001', {
     body: { title: 'x' },
     headers: { 'if-match': '"v99"' },
   });
-  assert.equal(conflict.status, 409);
-  assert.equal(conflict.json.error.code, 'conflict');
+  assert.equal(conflictRes.status, 409);
+  assert.equal(conflictRes.json.error.code, 'conflict');
 });
 
 test('human-only 任务不允许通过 API 执行', async () => {
-  const task = store.getTask('T-001');
-  store.updateTask('T-001', { ...task, autonomy: 'human-only' }, task.version);
+  const task = await store.getTask('T-001');
+  await store.updateTask('T-001', { ...task, autonomy: 'human-only' }, task.version);
   const res = await api('POST', '/api/v1/tasks/T-001/runs', { body: { actor: 'test' } });
   assert.equal(res.status, 403);
   assert.equal(res.json.error.code, 'policy_denied');
-  store.updateTask('T-001', { ...task, autonomy: 'auto', scope: task.scope }, store.getTask('T-001').version);
+  const after = await store.getTask('T-001');
+  await store.updateTask('T-001', { ...task, autonomy: 'auto', scope: task.scope }, after.version);
 });
 
 test('未知接口返回 404 而不是 500', async () => {
@@ -118,7 +118,6 @@ test('执行闭环：无变更失败 → 写入实现通过 → 证据可校验 
     spawnSync('git', ['-C', wt, 'clean', '-fdq'], { stdio: 'ignore' });
   };
 
-  // 先触发一次让 worktree 就绪，再复位（消除上一次测试运行的残留，保证可重复）
   await api('POST', '/api/v1/tasks/T-001/runs', { body: { actor: 'test' } });
   resetWorktree();
 

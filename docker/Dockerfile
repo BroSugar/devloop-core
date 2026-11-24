@@ -1,4 +1,4 @@
-# 生产镜像：两段构建（前端产物 + 零依赖后端运行时）
+# 生产镜像：三段构建（前端产物 + 后端依赖 + 运行时）
 
 # ---------- 1. 构建前端 ----------
 FROM node:24-bookworm-slim AS web
@@ -16,7 +16,13 @@ RUN pnpm install --frozen-lockfile
 COPY client/ ./
 RUN pnpm build
 
-# ---------- 2. 运行时 ----------
+# ---------- 2. 后端依赖（只有 pg） ----------
+FROM node:24-bookworm-slim AS serverdeps
+WORKDIR /deps
+COPY server/package.json server/package-lock.json ./
+RUN npm ci --omit=dev
+
+# ---------- 3. 运行时 ----------
 FROM node:24-bookworm-slim AS runtime
 
 # 运行期需要 git：bootstrap 生成示例仓、任务执行用 worktree
@@ -37,6 +43,7 @@ COPY projects/ projects/
 COPY samples/ samples/
 COPY scripts/ scripts/
 
+COPY --from=serverdeps /deps/node_modules server/node_modules
 COPY --from=web /src/apps/web/dist client/apps/web/dist
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh && mkdir -p data

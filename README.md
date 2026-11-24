@@ -6,16 +6,21 @@
 ## 快速开始
 
 ```bash
-node scripts/bootstrap.mjs      # 1. 把 samples/ 里的示例仓复制成独立 git 仓库（首次）
-node server/index.mjs           # 2. 启动：http://127.0.0.1:8787 （token: dev-local-token）
-node server/test/api.test.mjs   # 3. API 契约测试
+docker compose up -d postgres    # 1. 数据库（PostgreSQL 18，映射到 127.0.0.1:55432）
+npm --prefix server ci           # 2. 后端依赖（只有 pg）
+node scripts/bootstrap.mjs       # 3. 把 samples/ 里的示例仓复制成独立 git 仓库（首次）
+node server/index.mjs            # 4. 启动：http://127.0.0.1:8787（token: dev-local-token）
+node server/test/api.test.mjs    # 5. API 契约测试（每个测试文件建独立库，跑完删除）
 ```
+
+数据库连接用 `DATABASE_URL` 覆盖，默认 `postgres://devloop:devloop@127.0.0.1:5432/devloop`。
+用上面 compose 起的库时：`export DATABASE_URL=postgres://devloop:devloop@127.0.0.1:55432/devloop`。
 
 打开 <http://127.0.0.1:8787/> 就是面板。平台自己不内嵌被管仓库：`repos/` 由 bootstrap 从 `samples/` 生成并 gitignore。
 
 ### 前端：pnpm workspace
 
-前端是独立的工作区（`client/`），服务端零依赖不变。
+前端是独立的工作区（`client/`），与服务端解耦；服务端只依赖 `pg`（见 `server/package.json`）。
 
 ```
 client/

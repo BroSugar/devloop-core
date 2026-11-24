@@ -1,5 +1,6 @@
 # 开发镜像：只跑后端（前端用宿主机 pnpm dev，HMR 更快）
-# 服务端零 npm 依赖，所以镜像里没有 pnpm install 步骤。
+# 后端依赖 @devloop/server 的 pg 客户端；dev 走 bind mount，node_modules 来自宿主机，
+# 因此 entrypoint 会在缺失时补装一次。
 FROM node:24-alpine
 
 # bootstrap 与任务执行都要 git
@@ -12,7 +13,8 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENV NODE_ENV=development \
     DEVLOOP_HOST=0.0.0.0 \
-    DEVLOOP_PORT=8787
+    DEVLOOP_PORT=8787 \
+    DATABASE_URL=postgres://devloop:devloop@postgres:5432/devloop
 
 EXPOSE 8787
 

@@ -84,7 +84,7 @@ export function createServer({ store, token }) {
         }
       }
       const body = req.method === 'GET' || req.method === 'HEAD' ? undefined : await readBody(req);
-      const result = api.handle({
+      const result = await api.handle({
         method: req.method,
         pathname,
         query: Object.fromEntries(url.searchParams),
