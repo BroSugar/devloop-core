@@ -12,9 +12,10 @@ cards:
 policy:
   max_files_per_task: 6
   max_diff_lines: 300
+# 按项目覆盖 AI 路由：这个项目的实现者走本地 agent（代码不出内网）
 ai:
   routing:
-    implementer: local-agent
+    implementer: local-implementer
 templates:
   requirement: feature
   task: feature

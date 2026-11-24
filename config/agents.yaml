@@ -1,4 +1,4 @@
-# agent 注册表：流水线角色 → provider。项目可以按 id 覆盖路由（见 projects/*/project.yaml 的 ai.routing）。
+# agent 注册表：流水线角色 → provider。项目可以按角色覆盖路由（见 projects/*/project.yaml 的 ai.routing）。
 agents:
   decomposer:
     provider: openai-compatible
@@ -7,6 +7,12 @@ agents:
     max_tokens: 8192
 
   implementer:
+    provider: openai-compatible
+    prompt: prompts/implement.md
+    temperature: 0.1
+
+  # 本地/容器内 agent：不依赖外部网络，适合代码不允许出内网的团队
+  local-implementer:
     provider: local-agent
     prompt: prompts/implement.md
     temperature: 0.1
@@ -23,4 +29,5 @@ routing:
     decomposer: decomposer
     implementer: implementer
     reviewer: reviewer
+  # 按项目覆盖：项目 id → 角色 → agent 名
   by_project: {}

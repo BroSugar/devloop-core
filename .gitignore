@@ -1,3 +1,5 @@
+# 被管仓库是外部 checkout，不内嵌进平台仓库（与 CI 的定位一致）
+repos/
 worktrees/
 runs/
 archive/
