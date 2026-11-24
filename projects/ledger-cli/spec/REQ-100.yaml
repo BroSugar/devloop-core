@@ -1,0 +1,28 @@
+id: REQ-100
+title: 多币种账单汇总
+status: ready
+autonomy: auto
+owner: product-王芳
+summary: |
+  命令行工具读取一份账单文件（每行一条金额，例如 "USD 12.34"），
+  按币种分组汇总后输出，每行一条，按币种字典序升序。
+  不同币种不允许混在一起求和。
+policy:
+  deny_write:
+    - "**/*_test.go"
+acceptance:
+  - id: AC-1
+    text: New 拒绝非法币种（空/小写/长度不为 3），接受 USD 并保留分值
+    verify_by: internal/money/amount_test.go
+  - id: AC-2
+    text: Format 输出 "USD 12.34"，负数输出 "-USD 0.05"，0 输出 "USD 0.00"
+    verify_by: internal/money/amount_test.go
+  - id: AC-3
+    text: Parse 能解析 "USD 12.34"，缺少币种时报错
+    verify_by: internal/money/amount_test.go
+  - id: AC-4
+    text: Sum 按币种分组求和，结果按币种字典序升序，空输入返回空
+    verify_by: internal/money/sum_test.go
+  - id: AC-5
+    text: CLI 读取账单文件输出汇总；缺少参数报错
+    verify_by: cmd/ledger/main_test.go

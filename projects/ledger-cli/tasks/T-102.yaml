@@ -1,0 +1,21 @@
+id: T-102
+title: 多币种汇总
+requirement: REQ-100
+autonomy: auto
+depends_on: [T-101]
+objective: |
+  在 internal/money/sum.go 实现 Sum：
+  - 按币种分组求和，不同币种不混合
+  - 结果按币种字典序升序
+  - 空输入返回长度 0 的切片（nil 也可接受）
+  不得修改任何 _test.go 文件。
+scope:
+  write:
+    - internal/money/sum.go
+  deny:
+    - "**/*_test.go"
+acceptance: [AC-4]
+verify:
+  - build
+  - lint
+  - go test ./internal/money -run TestSum

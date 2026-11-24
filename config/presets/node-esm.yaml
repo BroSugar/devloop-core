@@ -1,0 +1,12 @@
+# Node / ESM 技术栈预设：单仓 pilot（order-cancel-pilot）用的就是这套。
+# 换成你们自己的 TS 仓库时，把三条命令换成 pnpm build / pnpm lint / pnpm test 即可。
+gates:
+  build:
+    command: "node pipeline/tools/gates/smoke.mjs"
+    timeout_ms: 300000
+  lint:
+    command: "node pipeline/tools/gates/lint.mjs"
+    timeout_ms: 300000
+  test:
+    command: "node pipeline/tools/gates/tests.mjs"
+    timeout_ms: 600000

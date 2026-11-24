@@ -1,0 +1,18 @@
+# Go 标准库技术栈预设。与 node-esm 完全同构，只是命令不同 ——
+# 这就是“统一门禁”的含义：入口一致，实现按栈配置。
+gates:
+  env:
+    # 缓存必须落在沙箱可写目录，且不能污染仓库工作区
+    GOCACHE: "{{platform.root}}/.cache/go-build"
+    GOPATH: "{{platform.root}}/.cache/gopath"
+    GOFLAGS: "-mod=mod"
+    GOTOOLCHAIN: "local"
+  build:
+    command: "go build ./..."
+    timeout_ms: 300000
+  lint:
+    command: "go vet ./..."
+    timeout_ms: 300000
+  test:
+    command: "go test ./..."
+    timeout_ms: 600000

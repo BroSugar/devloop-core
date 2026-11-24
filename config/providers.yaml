@@ -1,0 +1,23 @@
+# AI provider 注册表：内核不出现任何模型名，换模型只改这里。
+# api_key_env 指向环境变量名，密钥永远不落在配置文件里。
+providers:
+  openai-compatible:
+    kind: openai-compatible
+    base_url: "https://api.example.com/v1"
+    model: "gpt-4.1"
+    api_key_env: "PLATFORM_LLM_API_KEY"
+    timeout_ms: 120000
+
+  anthropic:
+    kind: anthropic
+    base_url: "https://api.anthropic.com"
+    model: "claude-sonnet-4"
+    api_key_env: "ANTHROPIC_API_KEY"
+    anthropic_version: "2023-06-01"
+    timeout_ms: 120000
+
+  # 本地/容器内 agent：把你们的 agent CLI 填进来即可，prompt 通过 DSH_PROMPT_FILE 传入，
+  # 约定 stdout 输出 JSON。
+  local-agent:
+    kind: cli
+    command: "node tools/local-agent.mjs"

@@ -1,0 +1,23 @@
+id: T-103
+title: CLI 汇总命令 + 需求级集成（全量测试转绿）
+requirement: REQ-100
+autonomy: auto
+depends_on: [T-102]
+objective: |
+  在 cmd/ledger/main.go 实现 Run：
+  - 读取 args[0] 指定的账单文件，每行一条金额（"USD 12.34"）
+  - 用 money.Parse 解析、money.Sum 汇总
+  - 输出每行 "EUR 5.00"，按币种字典序升序，行尾带 \n
+  - 缺少参数返回错误；文件读取失败返回错误
+  作为需求级集成门禁：全量测试（go test ./...）必须全绿。
+  不得修改任何 _test.go 文件。
+scope:
+  write:
+    - cmd/ledger/main.go
+  deny:
+    - "**/*_test.go"
+acceptance: [AC-5]
+verify:
+  - build
+  - lint
+  - go test ./...

@@ -1,0 +1,11 @@
+# 项目 1：既有单仓（订单取消 pilot）。零迁移接入——卡仍然留在它自己的仓库里。
+id: order-cancel
+name: 订单取消（单仓 pilot）
+stack: node-esm
+repo:
+  path: ../../../order-cancel-pilot
+  branch: main
+cards:
+  mode: repo
+  spec_dir: pipeline/spec
+  tasks_dir: pipeline/tasks

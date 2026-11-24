@@ -1,0 +1,20 @@
+# 项目 2：全新 Go 仓库。接入一个新仓只需要这一个文件 —— 没有改任何代码。
+id: ledger-cli
+name: 记账 CLI（Go 标准库）
+stack: go-stdlib
+repo:
+  path: ../../repos/ledger-cli
+  branch: main
+cards:
+  mode: platform
+  spec_dir: spec
+  tasks_dir: tasks
+policy:
+  max_files_per_task: 6
+  max_diff_lines: 300
+ai:
+  routing:
+    implementer: local-agent
+templates:
+  requirement: feature
+  task: feature

@@ -1,0 +1,16 @@
+# 平台级默认配置。项目配置只在需要覆盖时写，没写的全部继承这里。
+# 覆盖链：platform.defaults → presets.<stack> → projects/<id>/project.yaml → CLI --set
+version: 1
+defaults:
+  policy:
+    # 安全默认：任何项目都不许改测试文件（判据与实现必须解耦）
+    deny_write:
+      - "**/*_test.go"
+      - "**/*.test.mjs"
+      - "**/*.spec.mjs"
+      - "pipeline/**"
+    max_files_per_task: 8
+    max_diff_lines: 400
+    timeout_ms: 600000
+  evidence:
+    archive_dir: archive
