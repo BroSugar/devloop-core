@@ -1,10 +1,16 @@
 #!/bin/sh
-# 容器启动前的幂等准备：数据目录 + 示例仓库（repos/ 不存在时从 samples/ 生成）。
+# 容器启动前的幂等准备：后端依赖 + 数据目录 + 示例仓库。
 # dev 用 bind mount 时 repos/ 已由宿主机 bootstrap 过，这里会跳过。
 set -eu
 
 APP_DIR="${APP_DIR:-/app}"
 cd "$APP_DIR"
+
+# dev 形态下 node_modules 来自宿主机；容器里若缺 pg 就补装一次（纯 JS，不编译）
+if [ ! -d server/node_modules/pg ]; then
+  echo "[entrypoint] server/node_modules 缺少 pg，安装后端依赖…"
+  npm --prefix server ci --omit=dev || echo "[entrypoint] 后端依赖安装失败（数据库相关接口会不可用）"
+fi
 
 mkdir -p data
 

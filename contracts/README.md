@@ -5,7 +5,7 @@
 | 文件 | 内容 | 谁消费 |
 | --- | --- | --- |
 | `api.v1.yaml` | HTTP API（OpenAPI 3.1）：路径、信封、错误码、ETag | 服务端实现、客户端 `api.mjs` |
-| `db.v1.sql` | 存储模型（SQLite DDL）：实体、约束、索引 | 服务端迁移 |
+| `db.v1.sql` | 存储模型（PostgreSQL DDL）：实体、约束、索引 | 服务端迁移 |
 | `config.schema.v1.json` | 项目/平台配置 JSON Schema | 服务端校验（客户端只读） |
 | `agent.schema.v1.json` | agent 配置 + 执行策略 schema | 服务端下发、客户端只读 |
 | `ipc.v1.md` | 壳 ↔ 视图 的本地能力契约（文件/终端/agent） | 客户端壳与视图 |

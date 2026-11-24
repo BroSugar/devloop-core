@@ -1,10 +1,9 @@
--- devloop 存储模型 v1（SQLite）
+-- devloop 存储模型 v1（PostgreSQL 18）
 -- 约定：
---   1) 时间一律 ISO-8601 UTC 字符串；id 一律文本（业务 id 可读，代理键用 hex）。
+--   1) 时间为 ISO-8601 UTC 文本（由应用层生成，避免时区歧义）；id 为文本业务主键。
 --   2) 所有派生状态（任务状态、DAG 层级、需求完成度）由服务端计算后落库，客户端不重算。
 --   3) 证据只存元数据与 sha256，内容存文件系统（evidence.rel_path 相对 data 根）。
-
-PRAGMA foreign_keys = ON;
+--   4) 本文件可重复执行（IF NOT EXISTS），migrate 每次启动跑一遍。
 
 CREATE TABLE IF NOT EXISTS schema_meta (
   key   TEXT PRIMARY KEY,
@@ -30,22 +29,22 @@ CREATE TABLE IF NOT EXISTS project_configs (
   id            TEXT PRIMARY KEY,
   project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   version       INTEGER NOT NULL,
-  resolved_json TEXT NOT NULL,          -- 合并后的最终配置
-  sources_json  TEXT NOT NULL,          -- 每个叶子值的来源（platform|preset:x|project）
+  resolved_json TEXT NOT NULL,
+  sources_json  TEXT NOT NULL,
   sha256        TEXT NOT NULL,
   created_at    TEXT NOT NULL,
   UNIQUE (project_id, version)
 );
 
 CREATE TABLE IF NOT EXISTS requirements (
-  id         TEXT PRIMARY KEY,          -- REQ-100
+  id         TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title      TEXT NOT NULL,
   status     TEXT NOT NULL CHECK (status IN ('draft', 'ready', 'accepted', 'archived')),
   autonomy   TEXT NOT NULL CHECK (autonomy IN ('auto', 'assisted', 'human-only')),
   owner      TEXT,
   summary    TEXT,
-  version    INTEGER NOT NULL DEFAULT 1, -- 乐观锁
+  version    INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -53,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_requirements_project ON requirements(project_id, 
 
 CREATE TABLE IF NOT EXISTS acceptance_criteria (
   requirement_id TEXT NOT NULL REFERENCES requirements(id) ON DELETE CASCADE,
-  id             TEXT NOT NULL,          -- AC-1
+  id             TEXT NOT NULL,
   seq            INTEGER NOT NULL,
   text           TEXT NOT NULL,
   verify_by      TEXT NOT NULL,
@@ -61,13 +60,13 @@ CREATE TABLE IF NOT EXISTS acceptance_criteria (
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
-  id             TEXT PRIMARY KEY,       -- T-101
+  id             TEXT PRIMARY KEY,
   requirement_id TEXT NOT NULL REFERENCES requirements(id) ON DELETE CASCADE,
   title          TEXT NOT NULL,
   objective      TEXT,
   autonomy       TEXT NOT NULL CHECK (autonomy IN ('auto', 'assisted', 'human-only')),
   status         TEXT NOT NULL CHECK (status IN ('pending', 'ready', 'running', 'passed', 'failed', 'blocked')),
-  dag_layer      INTEGER,                -- 服务端计算的拓扑层级（null = 尚未计算）
+  dag_layer      INTEGER,
   version        INTEGER NOT NULL DEFAULT 1,
   created_at     TEXT NOT NULL,
   updated_at     TEXT NOT NULL
@@ -91,8 +90,8 @@ CREATE TABLE IF NOT EXISTS task_scope (
 CREATE TABLE IF NOT EXISTS task_verify (
   task_id          TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   seq              INTEGER NOT NULL,
-  ref              TEXT NOT NULL,        -- 门禁名（build/lint/test）或裸命令
-  resolved_command TEXT,                 -- 服务端解析后的实际命令
+  ref              TEXT NOT NULL,
+  resolved_command TEXT,
   PRIMARY KEY (task_id, seq)
 );
 
@@ -109,7 +108,7 @@ CREATE TABLE IF NOT EXISTS runs (
   attempt        INTEGER NOT NULL,
   status         TEXT NOT NULL CHECK (status IN ('queued', 'running', 'passed', 'failed', 'cancelled')),
   reason         TEXT,
-  actor          TEXT,                   -- 触发者（用户/系统/agent）
+  actor          TEXT,
   agent_profile  TEXT,
   workspace      TEXT,
   changed_files  INTEGER NOT NULL DEFAULT 0,
@@ -127,14 +126,14 @@ CREATE TABLE IF NOT EXISTS run_stages (
   command      TEXT NOT NULL,
   exit_code    INTEGER,
   duration_ms  INTEGER,
-  log_evidence TEXT REFERENCES evidence(id) ON DELETE SET NULL,
+  log_evidence TEXT,
   PRIMARY KEY (run_id, seq)
 );
 
 CREATE TABLE IF NOT EXISTS run_changes (
   run_id   TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
   path     TEXT NOT NULL,
-  in_scope INTEGER NOT NULL CHECK (in_scope IN (0, 1)),
+  in_scope BOOLEAN NOT NULL,
   reason   TEXT,
   PRIMARY KEY (run_id, path)
 );
@@ -143,7 +142,7 @@ CREATE TABLE IF NOT EXISTS evidence (
   id         TEXT PRIMARY KEY,
   run_id     TEXT REFERENCES runs(id) ON DELETE CASCADE,
   kind       TEXT NOT NULL CHECK (kind IN ('diff', 'log', 'result', 'manifest', 'changes')),
-  rel_path   TEXT NOT NULL,              -- 相对 data 根；内容在文件系统
+  rel_path   TEXT NOT NULL,
   sha256     TEXT NOT NULL,
   bytes      INTEGER NOT NULL,
   created_at TEXT NOT NULL
@@ -153,7 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_evidence_run ON evidence(run_id, kind);
 -- 服务端下发给客户端的 agent 配置（客户端只读）
 CREATE TABLE IF NOT EXISTS agent_profiles (
   id             TEXT PRIMARY KEY,
-  project_id     TEXT REFERENCES projects(id) ON DELETE CASCADE, -- null = 平台默认
+  project_id     TEXT REFERENCES projects(id) ON DELETE CASCADE,
   role           TEXT NOT NULL CHECK (role IN ('decomposer', 'implementer', 'reviewer')),
   adapter        TEXT NOT NULL CHECK (adapter IN ('openai-compatible', 'anthropic', 'cli', 'vscode-claude-code')),
   model          TEXT,
@@ -168,7 +167,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_profiles_project ON agent_profiles(project_
 
 -- 事件流：面板时间线与客户端增量拉取（since=event id）
 CREATE TABLE IF NOT EXISTS events (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   project_id     TEXT,
   requirement_id TEXT,
   task_id        TEXT,
@@ -179,14 +178,14 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS idx_events_project ON events(project_id, id);
 
--- v1.1 增量：卡与仓库文件的同步基线（导出/导入的三方比较依据）
+-- 卡与仓库文件的同步基线（导出/导入的三方比较依据）
 CREATE TABLE IF NOT EXISTS card_sync (
   kind          TEXT NOT NULL CHECK (kind IN ('requirement', 'task')),
   card_id       TEXT NOT NULL,
   project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  file_path     TEXT NOT NULL,          -- 相对项目卡根目录
-  base_db_sha   TEXT NOT NULL,          -- 上次同步时 DB 规范化内容的哈希
-  base_file_sha TEXT NOT NULL,          -- 上次同步时文件字节的哈希
+  file_path     TEXT NOT NULL,
+  base_db_sha   TEXT NOT NULL,
+  base_file_sha TEXT NOT NULL,
   synced_at     TEXT NOT NULL,
   PRIMARY KEY (kind, card_id)
 );

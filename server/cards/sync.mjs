@@ -1,15 +1,5 @@
 // 卡同步：DB ↔ 仓库 YAML 的三方比较（DB 内容 / 文件内容 / 上次同步基线）。
-//
-// 状态：
-//   synced      两侧都没变
-//   db_ahead    只有 DB 变了 → 可安全导出
-//   file_ahead  只有文件变了 → 可安全导入
-//   conflict    两侧都变了 → 禁止自动写，必须人处理
-//   db_only     DB 有、文件无 → 导出时新建
-//   file_only   文件有、DB 无 → 导入时新建
-//   untracked   没有同步基线（首次遇到，且两侧都有）
-//
-// 原则：导出/导入都是显式动作，绝不自动写仓库；冲突一律不覆盖。
+// PostgreSQL 时代：所有仓储调用异步，本模块的函数都是 async。
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,30 +35,34 @@ function scanFiles(dirs) {
       let parsed;
       try { parsed = parseYamlFile(abs); } catch { continue; }
       if (!parsed?.id) continue;
-      index.set(`${kind}:${parsed.id}`, {
-        kind, id: parsed.id, abs, parsed,
-        raw: fs.readFileSync(abs, 'utf8'),
-      });
+      index.set(`${kind}:${parsed.id}`, { kind, id: parsed.id, abs, parsed, raw: fs.readFileSync(abs, 'utf8') });
     }
   }
   return index;
 }
 
-export function computeSyncState(store, project, config) {
+function actionOf(state) {
+  if (state === 'db_ahead' || state === 'db_only') return 'export';
+  if (state === 'file_ahead' || state === 'file_only' || state === 'untracked') return 'import';
+  if (state === 'conflict') return 'manual';
+  return 'none';
+}
+
+export async function computeSyncState(store, project, config) {
   const dirs = cardDirs(config);
   const files = scanFiles(dirs);
   const items = [];
 
-  const requirements = store.listRequirements(project.id);
-  const tasks = requirements.flatMap((r) => store.listTasks(r.id));
+  const requirements = await store.listRequirements(project.id);
+  const tasks = [];
+  for (const r of requirements) tasks.push(...(await store.listTasks(r.id)));
 
   for (const kind of KINDS) {
     const dbCards = kind === 'requirement' ? requirements : tasks;
     for (const card of dbCards) {
       const key = `${kind}:${card.id}`;
-      const dbCanonical = canonicalizers[kind](card);
-      const dbSha = hashOf(dbCanonical);
-      const rec = store.getCardSync(kind, card.id);
+      const dbSha = hashOf(canonicalizers[kind](card));
+      const rec = await store.getCardSync(kind, card.id);
       const file = files.get(key) || null;
       const fileSha = file ? sha256Bytes(Buffer.from(file.raw, 'utf8')) : null;
 
@@ -84,12 +78,9 @@ export function computeSyncState(store, project, config) {
       if (file) files.delete(key);
 
       items.push({
-        kind, id: card.id, state,
-        path: rel(absPath, dirs.baseDir),
-        absPath,
+        kind, id: card.id, state, path: rel(absPath, dirs.baseDir), absPath,
         dbSha, fileSha,
-        baseDbSha: rec?.baseDbSha ?? null,
-        baseFileSha: rec?.baseFileSha ?? null,
+        baseDbSha: rec?.baseDbSha ?? null, baseFileSha: rec?.baseFileSha ?? null,
         action: actionOf(state),
       });
     }
@@ -98,12 +89,9 @@ export function computeSyncState(store, project, config) {
   for (const file of files.values()) {
     items.push({
       kind: file.kind, id: file.id, state: 'file_only',
-      path: rel(file.abs, dirs.baseDir),
-      absPath: file.abs,
-      dbSha: null,
-      fileSha: sha256Bytes(Buffer.from(file.raw, 'utf8')),
-      baseDbSha: null, baseFileSha: null,
-      action: 'import',
+      path: rel(file.abs, dirs.baseDir), absPath: file.abs,
+      dbSha: null, fileSha: sha256Bytes(Buffer.from(file.raw, 'utf8')),
+      baseDbSha: null, baseFileSha: null, action: 'import',
     });
   }
 
@@ -114,16 +102,9 @@ export function computeSyncState(store, project, config) {
   return { items, summary, dirs };
 }
 
-function actionOf(state) {
-  if (state === 'db_ahead' || state === 'db_only') return 'export';
-  if (state === 'file_ahead' || state === 'file_only' || state === 'untracked') return 'import';
-  if (state === 'conflict') return 'manual';
-  return 'none';
-}
-
-/** DB → 仓库 YAML。只处理 export 类状态；冲突与 file_ahead 一律跳过。 */
-export function exportCards(store, project, config, { dryRun = false, ids, prefer = 'safe' } = {}) {
-  const state = computeSyncState(store, project, config);
+/** DB → 仓库 YAML。只处理 export 类状态；冲突与 file_ahead 一律跳过（除非显式 force）。 */
+export async function exportCards(store, project, config, { dryRun = false, ids, prefer = 'safe' } = {}) {
+  const state = await computeSyncState(store, project, config);
   const results = [];
 
   for (const item of state.items) {
@@ -133,7 +114,7 @@ export function exportCards(store, project, config, { dryRun = false, ids, prefe
       results.push({ kind: item.kind, id: item.id, path: item.path, state: item.state, result: item.state === 'synced' ? 'skipped:in-sync' : `blocked:${item.state}` });
       continue;
     }
-    const card = item.kind === 'requirement' ? store.getRequirement(item.id) : store.getTask(item.id);
+    const card = item.kind === 'requirement' ? await store.getRequirement(item.id) : await store.getTask(item.id);
     if (!card) {
       results.push({ kind: item.kind, id: item.id, path: item.path, state: item.state, result: 'failed:card-missing' });
       continue;
@@ -152,13 +133,13 @@ export function exportCards(store, project, config, { dryRun = false, ids, prefe
       const tmp = `${item.absPath}.tmp`;
       fs.writeFileSync(tmp, text);
       fs.renameSync(tmp, item.absPath);
-      store.upsertCardSync({
+      await store.upsertCardSync({
         kind: item.kind, cardId: item.id, projectId: project.id,
         filePath: rel(item.absPath, state.dirs.baseDir),
         baseDbSha: hashOf(canonicalizers[item.kind](card)),
         baseFileSha: sha256Bytes(Buffer.from(text, 'utf8')),
       });
-      store.addEvent({
+      await store.addEvent({
         kind: 'card.exported',
         projectId: project.id,
         requirementId: item.kind === 'requirement' ? item.id : card.requirementId,
@@ -172,15 +153,15 @@ export function exportCards(store, project, config, { dryRun = false, ids, prefe
 }
 
 /** 仓库 YAML → DB。冲突不覆盖，除非显式 prefer=force。 */
-export function importCards(store, project, config, { dryRun = false, ids, prefer = 'safe' } = {}) {
+export async function importCards(store, project, config, { dryRun = false, ids, prefer = 'safe' } = {}) {
   const dirs = cardDirs(config);
   const files = scanFiles(dirs);
   const results = [];
 
   for (const [key, file] of files) {
     if (ids && !ids.includes(key)) continue;
-    const rec = store.getCardSync(file.kind, file.id);
-    const existing = file.kind === 'requirement' ? store.getRequirement(file.id) : store.getTask(file.id);
+    const rec = await store.getCardSync(file.kind, file.id);
+    const existing = file.kind === 'requirement' ? await store.getRequirement(file.id) : await store.getTask(file.id);
     const fileSha = sha256Bytes(Buffer.from(file.raw, 'utf8'));
 
     let action = 'import';
@@ -190,8 +171,10 @@ export function importCards(store, project, config, { dryRun = false, ids, prefe
       if (dbSha !== rec.baseDbSha && fileSha !== rec.baseFileSha) {
         action = prefer === 'force' ? 'import' : 'conflict';
         note = '两侧都改过';
+      } else if (fileSha === rec.baseFileSha) {
+        action = 'skip';
+        note = dbSha !== rec.baseDbSha ? 'db-ahead（等导出）' : 'synced';
       }
-      else if (fileSha === rec.baseFileSha) { action = 'skip'; note = dbSha !== rec.baseDbSha ? 'db-ahead（等导出）' : 'synced'; }
     } else if (!rec && existing) {
       action = prefer === 'force' ? 'import' : 'conflict';
       note = '缺少同步基线（provenance 不明）';
@@ -203,15 +186,15 @@ export function importCards(store, project, config, { dryRun = false, ids, prefe
     }
 
     if (!dryRun) {
-      applyCard(store, project, file);
-      const fresh = file.kind === 'requirement' ? store.getRequirement(file.id) : store.getTask(file.id);
-      store.upsertCardSync({
+      await applyCard(store, project, file);
+      const fresh = file.kind === 'requirement' ? await store.getRequirement(file.id) : await store.getTask(file.id);
+      await store.upsertCardSync({
         kind: file.kind, cardId: file.id, projectId: project.id,
         filePath: rel(file.abs, dirs.baseDir),
         baseDbSha: hashOf(canonicalizers[file.kind](fresh)),
         baseFileSha: fileSha,
       });
-      store.addEvent({
+      await store.addEvent({
         kind: 'card.imported',
         projectId: project.id,
         requirementId: file.kind === 'requirement' ? file.id : file.parsed.requirement,
@@ -224,25 +207,25 @@ export function importCards(store, project, config, { dryRun = false, ids, prefe
   return summarize(results, dryRun);
 }
 
-function applyCard(store, project, file) {
+async function applyCard(store, project, file) {
   const p = file.parsed;
   let requirementId = null;
   if (file.kind === 'requirement') {
-    store.upsertRequirement({
+    await store.upsertRequirement({
       id: p.id, projectId: project.id, title: p.title, status: p.status,
       autonomy: p.autonomy, owner: p.owner, summary: p.summary,
       acceptance: (p.acceptance || []).map((a) => ({ id: a.id, text: a.text, verifyBy: a.verify_by ?? a.verifyBy })),
     });
     requirementId = p.id;
   } else {
-    store.upsertTask({
+    await store.upsertTask({
       id: p.id, requirementId: p.requirement, title: p.title, objective: p.objective,
       autonomy: p.autonomy, deps: p.depends_on || [], scope: p.scope || {},
       verify: (p.verify || []).map((ref) => ({ ref })), acceptance: p.acceptance || [],
     });
     requirementId = p.requirement;
   }
-  if (requirementId) store.recomputeStatuses(requirementId);
+  if (requirementId) await store.recomputeStatuses(requirementId);
 }
 
 function summarize(results, dryRun) {
