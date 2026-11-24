@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PLATFORM_ROOT, loadConfig, resolve, readYaml } from '../platform/lib/config.mjs';
-import { loadCards } from '../platform/lib/plan.mjs';
+import { importCards } from './cards/sync.mjs';
 import { DATA_DIR } from './db.mjs';
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
@@ -36,23 +36,14 @@ export function seedAll(store, { log = console.log } = {}) {
     store.saveConfig(p.id, cfg, cfg.sources);
     stats.projects++;
 
-    // 卡
-    for (const card of loadCards(p.spec_path)) {
-      store.upsertRequirement({
-        id: card.id, projectId: p.id, title: card.title, status: card.status,
-        autonomy: card.autonomy, owner: card.owner, summary: card.summary,
-        acceptance: (card.acceptance || []).map((ac) => ({ id: ac.id, text: ac.text, verifyBy: ac.verify_by })),
-      });
-      stats.requirements++;
-    }
-    for (const card of loadCards(p.tasks_path)) {
-      store.upsertTask({
-        id: card.id, requirementId: card.requirement, title: card.title, objective: card.objective,
-        autonomy: card.autonomy, deps: card.depends_on || [],
-        scope: card.scope || {}, verify: (card.verify || []).map((ref) => ({ ref })),
-        acceptance: card.acceptance || [],
-      });
-      stats.tasks++;
+    // 卡：走同步导入，而不是盲目覆盖 DB。
+    // 已有的 card_sync 基线存在时，DB 侧改动不会被启动覆盖（这是导出回仓库能成立的前提）。
+    // 首次升级（项目还没有任何基线）视为迁移，强制以文件为准。
+    const isMigration = store.listCardSync(p.id).length === 0;
+    const imported = importCards(store, p, cfg, { prefer: isMigration ? 'force' : 'safe' });
+    if (imported.items.length) {
+      const conflicts = imported.items.filter((i) => i.result.startsWith('conflict'));
+      log(`[seed] ${p.id}: 导入 ${imported.items.length} 张卡${conflicts.length ? `，冲突 ${conflicts.length} 张（保持 DB 不变，等人工处理）` : ''}`);
     }
 
     // agent 配置快照（服务端下发、客户端只读）
@@ -65,8 +56,13 @@ export function seedAll(store, { log = console.log } = {}) {
       store.recomputeStatuses(req.id);
     }
   }
-  log(`[seed] 项目 ${stats.projects} / 需求 ${stats.requirements} / 任务 ${stats.tasks} / 执行 ${stats.runs} / 证据 ${stats.evidence}`);
-  return stats;
+
+  const counts = {
+    requirements: store.db.prepare('SELECT COUNT(*) AS n FROM requirements').get().n,
+    tasks: store.db.prepare('SELECT COUNT(*) AS n FROM tasks').get().n,
+  };
+  log(`[seed] 项目 ${stats.projects} / 需求 ${counts.requirements} / 任务 ${counts.tasks} / 执行 ${stats.runs} / 证据 ${stats.evidence}`);
+  return { ...stats, ...counts };
 }
 
 function seedAgents(store, projectId) {

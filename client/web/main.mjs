@@ -6,6 +6,7 @@ import { pickAdapter } from '../shell/adapter.mjs';
 import { renderFlow } from '../views/flow.mjs';
 import { renderCard } from '../views/card.mjs';
 import { renderEvidence } from '../views/evidence.mjs';
+import { renderSync } from '../views/sync.mjs';
 
 const state = {
   token: localStorage.getItem('devloop.token') || 'dev-local-token',
@@ -16,6 +17,8 @@ const state = {
   project: null,
   panel: null,
   agentConfig: null,
+  syncReport: null,
+  syncResult: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -74,6 +77,7 @@ async function refresh() {
   try {
     state.panel = (await state.api.panel(state.project.id)).data;
     state.agentConfig = (await state.api.agentConfig(state.project.id)).data;
+    state.syncReport = (await state.api.cardSync(state.project.id)).data;
     banner('');
   } catch (e) {
     banner(`加载面板失败：${e.message}`);
@@ -84,6 +88,11 @@ async function route() {
   const hash = location.hash.replace(/^#/, '') || '/';
   if (hash.startsWith('/task/')) return renderTaskView(decodeURIComponent(hash.slice('/task/'.length)));
   if (hash.startsWith('/evidence/')) return renderEvidenceView(decodeURIComponent(hash.slice('/evidence/'.length)));
+  if (hash === '/sync') return renderSyncView();
+
+  const conflicts = state.syncReport?.summary?.conflict || 0;
+  const untracked = state.syncReport?.summary?.untracked || 0;
+  const syncBadge = conflicts + untracked > 0 ? ` ⚠ ${conflicts + untracked}` : '';
   $('view').innerHTML = `
     <section class="flow-wrap">
       <div class="panel-head">
@@ -91,10 +100,26 @@ async function route() {
           <h2>${esc(state.project.name)}</h2>
           <div class="muted">${esc(state.project.id)} · ${esc(state.project.stack)} · ${state.panel.requirements.length} 个需求</div>
         </div>
-        <div class="actions"><button class="link" data-action="reload">刷新</button></div>
+        <div class="actions">
+          <button data-action="open-sync">卡同步${esc(syncBadge)}</button>
+          <button class="link" data-action="reload">刷新</button>
+        </div>
       </div>
       ${renderFlow({ panel: state.panel, project: state.project })}
     </section>`;
+}
+
+async function renderSyncView() {
+  try {
+    state.syncReport = (await state.api.cardSync(state.project.id)).data;
+    $('view').innerHTML = renderSync({
+      project: state.project,
+      report: state.syncReport,
+      lastResult: state.syncResult,
+    });
+  } catch (e) {
+    banner(`加载同步状态失败：${e.message}`);
+  }
 }
 
 async function renderTaskView(taskId) {
@@ -147,6 +172,32 @@ async function onClick(event) {
   }
   if (action === 'back') {
     history.back();
+    return;
+  }
+  if (action === 'open-sync') {
+    location.hash = '#/sync';
+    return;
+  }
+  if (action === 'open-flow') {
+    location.hash = '';
+    return;
+  }
+  if (action === 'sync-export' || action === 'sync-import') {
+    const dryRun = event.target.closest('[data-dry]')?.dataset.dry === '1';
+    try {
+      const res = action === 'sync-export'
+        ? await state.api.exportCards(state.project.id, { dryRun })
+        : await state.api.importCards(state.project.id, { dryRun });
+      state.syncResult = res.data;
+      const blocked = (res.data.items || []).filter((i) => String(i.result).startsWith('blocked') || String(i.result).startsWith('conflict'));
+      banner(blocked.length
+        ? `${dryRun ? '预览' : '已执行'}：${blocked.length} 张卡未处理（冲突或仓库有改动，需人工）`
+        : `${dryRun ? '预览' : '已执行'}：${JSON.stringify(res.data.counts)}`);
+      await refresh();
+      await renderSyncView();
+    } catch (e) {
+      banner(`同步失败：${e.message}`);
+    }
     return;
   }
   if (action === 'run') {

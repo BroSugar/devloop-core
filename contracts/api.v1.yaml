@@ -315,6 +315,60 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EventListEnvelope" }
 
+  /api/v1/projects/{projectId}/card-sync:
+    parameters:
+      - { $ref: "#/components/parameters/ProjectId" }
+    get:
+      tags: [cards]
+      summary: 卡同步状态（DB 内容 / 文件内容 / 上次基线 三方比较）
+      description: |
+        每张卡返回 synced / db_ahead / file_ahead / conflict / db_only / file_only / untracked，
+        以及建议动作（export / import / manual / none）。导出与导入都是显式动作，不会自动写仓库。
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncReportEnvelope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/projects/{projectId}/card-sync/export:
+    parameters:
+      - { $ref: "#/components/parameters/ProjectId" }
+    post:
+      tags: [cards]
+      summary: 把 DB 里的卡导出回仓库 YAML（只处理 db_ahead / db_only）
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SyncRequest" }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncResultEnvelope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/projects/{projectId}/card-sync/import:
+    parameters:
+      - { $ref: "#/components/parameters/ProjectId" }
+    post:
+      tags: [cards]
+      summary: 从仓库 YAML 导入到 DB（冲突默认不覆盖）
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SyncRequest" }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncResultEnvelope" }
+        "404": { $ref: "#/components/responses/NotFound" }
 components:
   securitySchemes:
     bearer:
@@ -387,6 +441,77 @@ components:
           schema: { $ref: "#/components/schemas/ErrorEnvelope" }
 
   schemas:
+    SyncItem:
+      type: object
+      required: [kind, id, state, action]
+      properties:
+        kind: { type: string, enum: [requirement, task] }
+        id: { type: string }
+        state:
+          type: string
+          enum: [synced, db_ahead, file_ahead, conflict, db_only, file_only, untracked]
+        action: { type: string, enum: [export, import, manual, none] }
+        path: { type: string, description: 相对项目卡根目录 }
+        dbSha: { type: string, nullable: true }
+        fileSha: { type: string, nullable: true }
+        baseDbSha: { type: string, nullable: true }
+        baseFileSha: { type: string, nullable: true }
+
+    SyncReport:
+      type: object
+      required: [projectId, summary, items]
+      properties:
+        projectId: { type: string }
+        summary:
+          type: object
+          additionalProperties: { type: integer }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SyncItem" }
+
+    SyncReportEnvelope:
+      type: object
+      properties:
+        data: { $ref: "#/components/schemas/SyncReport" }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    SyncRequest:
+      type: object
+      properties:
+        dryRun: { type: boolean, default: false, description: 只报告不落盘 }
+        ids:
+          type: array
+          items: { type: string, description: "kind:id，例如 task:T-001" }
+        prefer:
+          type: string
+          enum: [safe, force]
+          default: safe
+          description: force 仅用于首次迁移（无基线时以文件为准）
+
+    SyncResult:
+      type: object
+      required: [dryRun, counts, items]
+      properties:
+        dryRun: { type: boolean }
+        counts:
+          type: object
+          additionalProperties: { type: integer }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              kind: { type: string }
+              id: { type: string }
+              path: { type: string }
+              state: { type: string }
+              result: { type: string, description: "exported / would-export / blocked:<state> / conflict:<note> / skipped:<note>" }
+
+    SyncResultEnvelope:
+      type: object
+      properties:
+        data: { $ref: "#/components/schemas/SyncResult" }
+        meta: { $ref: "#/components/schemas/Meta" }
     Meta:
       type: object
       required: [apiVersion, requestId]

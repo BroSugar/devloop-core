@@ -47,6 +47,9 @@ export function createApiClient({ baseUrl = '', token }) {
     run: (id) => get(`/api/v1/runs/${id}`),
     evidence: (runId) => get(`/api/v1/runs/${runId}/evidence`),
     evidenceContent: (evidenceId) => get(`/api/v1/evidence/${evidenceId}/content`),
+    cardSync: (projectId) => get(`/api/v1/projects/${projectId}/card-sync`),
+    exportCards: (projectId, body) => post(`/api/v1/projects/${projectId}/card-sync/export`, body || {}),
+    importCards: (projectId, body) => post(`/api/v1/projects/${projectId}/card-sync/import`, body || {}),
     agentConfig: (projectId) => get(`/api/v1/agent-config?projectId=${encodeURIComponent(projectId)}`),
     events: (projectId, since = 0) => get(`/api/v1/events?projectId=${encodeURIComponent(projectId)}&since=${since}`),
   };

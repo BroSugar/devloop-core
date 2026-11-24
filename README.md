@@ -1,4 +1,4 @@
-﻿# devloop-core
+# devloop-core
 
 配置驱动的自动化开发平台：把「需求卡 → 任务卡 DAG → 隔离实现 → 统一门禁 → 证据归档」做成与仓库无关的内核，
 仓库差异、技术栈差异、AI 供应商差异**全部走配置**。服务端负责 API、存储与执行；客户端（Web / 桌面）只做卡编辑与证据查看。
@@ -144,3 +144,25 @@ Web 形态没有 fs/term/agent，视图据此隐藏本地入口；Tauri 壳接�
 
 每次执行产生：`changes.txt` / `diff.patch` / 每阶段 `verify` 日志 / `result.json`，每条都带 sha256。
 `GET /runs/{id}/evidence` 列清单，`GET /evidence/{id}/content` 取原文，响应头 `x-evidence-sha256` 可与库中值比对。
+
+## 卡同步（DB ↔ 仓库）
+
+卡有两个副本：DB（客户端编辑）与仓库 YAML（PR 评审）。两个副本一定会分叉，所以做了**三方比较**——
+DB 内容 / 文件内容 / 上次同步基线：
+
+| 状态 | 含义 | 动作 |
+| --- | --- | --- |
+| `synced` | 两侧一致 | 无 |
+| `db_ahead` | 只有 DB 改了 | 导出 |
+| `file_ahead` | 只有文件改了 | 导入 |
+| `conflict` | 两侧都改了 | 人工（`prefer: force` 才覆盖） |
+
+```bash
+GET  /api/v1/projects/{p}/card-sync                 # 状态总览
+POST /api/v1/projects/{p}/card-sync/export  {"dryRun":true}
+POST /api/v1/projects/{p}/card-sync/export  {}      # 只处理 db_ahead / db_only
+POST /api/v1/projects/{p}/card-sync/import  {}
+```
+
+导出写的是工作区文件（不 commit），写前会自检"渲染出的 YAML 能解析回同一张卡"。冲突默认两侧都不动。
+Web 面板在流程视图右上角有「卡同步」入口。详见 [docs/05-卡同步与冲突检测.md](docs/05-卡同步与冲突检测.md)。

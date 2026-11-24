@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR } from './db.mjs';
 import { PLATFORM_ROOT } from '../platform/lib/config.mjs';
+import { computeSyncState, exportCards, importCards } from './cards/sync.mjs';
 import { validateCards } from './pipeline/validate.mjs';
 import { executeRun } from './pipeline/execute.mjs';
 
@@ -223,6 +224,57 @@ export function createApi({ store }) {
       };
     } },
 
+    { method: 'GET', pattern: /^\/api\/v1\/projects\/([^/]+)\/card-sync$/, fn: ({ params }) => {
+      const project = store.getProject(params[0]);
+      if (!project) return notFound('项目不存在');
+      const config = store.latestConfig(project.id)?.resolved;
+      if (!config) return notFound('配置快照不存在');
+      try {
+        const state = computeSyncState(store, project, config);
+        return ok({
+          projectId: project.id,
+          summary: state.summary,
+          items: state.items.map((i) => ({
+            kind: i.kind, id: i.id, state: i.state, action: i.action, path: i.path,
+            dbSha: i.dbSha, fileSha: i.fileSha, baseDbSha: i.baseDbSha, baseFileSha: i.baseFileSha,
+          })),
+        });
+      } catch (e) {
+        return badRequest(`卡同步不可用：${e.message}`);
+      }
+    } },
+
+    { method: 'POST', pattern: /^\/api\/v1\/projects\/([^/]+)\/card-sync\/export$/, fn: ({ params, body }) => {
+      const project = store.getProject(params[0]);
+      if (!project) return notFound('项目不存在');
+      const config = store.latestConfig(project.id)?.resolved;
+      if (!config) return notFound('配置快照不存在');
+      try {
+        return ok(exportCards(store, project, config, {
+          dryRun: !!body?.dryRun,
+          ids: body?.ids,
+          prefer: body?.prefer === 'force' ? 'force' : 'safe',
+        }));
+      } catch (e) {
+        return badRequest(`导出失败：${e.message}`);
+      }
+    } },
+
+    { method: 'POST', pattern: /^\/api\/v1\/projects\/([^/]+)\/card-sync\/import$/, fn: ({ params, body }) => {
+      const project = store.getProject(params[0]);
+      if (!project) return notFound('项目不存在');
+      const config = store.latestConfig(project.id)?.resolved;
+      if (!config) return notFound('配置快照不存在');
+      try {
+        const result = importCards(store, project, config, {
+          dryRun: !!body?.dryRun, ids: body?.ids, prefer: body?.prefer === 'force' ? 'force' : 'safe',
+        });
+        for (const req of store.listRequirements(project.id)) store.recomputeStatuses(req.id);
+        return ok(result);
+      } catch (e) {
+        return badRequest(`导入失败：${e.message}`);
+      }
+    } },
     { method: 'GET', pattern: /^\/api\/v1\/agent-config$/, fn: ({ query }) => {
       const projectId = query.projectId || store.listProjects()[0]?.id;
       if (!projectId) return notFound('没有已注册项目');

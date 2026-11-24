@@ -178,3 +178,16 @@ CREATE TABLE IF NOT EXISTS events (
   at             TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_events_project ON events(project_id, id);
+
+-- v1.1 增量：卡与仓库文件的同步基线（导出/导入的三方比较依据）
+CREATE TABLE IF NOT EXISTS card_sync (
+  kind          TEXT NOT NULL CHECK (kind IN ('requirement', 'task')),
+  card_id       TEXT NOT NULL,
+  project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  file_path     TEXT NOT NULL,          -- 相对项目卡根目录
+  base_db_sha   TEXT NOT NULL,          -- 上次同步时 DB 规范化内容的哈希
+  base_file_sha TEXT NOT NULL,          -- 上次同步时文件字节的哈希
+  synced_at     TEXT NOT NULL,
+  PRIMARY KEY (kind, card_id)
+);
+CREATE INDEX IF NOT EXISTS idx_card_sync_project ON card_sync(project_id);

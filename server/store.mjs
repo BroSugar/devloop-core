@@ -371,6 +371,33 @@ export class Store {
     return { id: r.id, runId: r.run_id, kind: r.kind, relPath: r.rel_path, sha256: r.sha256, bytes: r.bytes, createdAt: r.created_at };
   }
 
+  // ---------- card sync ----------
+
+  getCardSync(kind, cardId) {
+    const r = this.db.prepare('SELECT * FROM card_sync WHERE kind = ? AND card_id = ?').get(kind, cardId);
+    if (!r) return null;
+    return {
+      kind: r.kind, cardId: r.card_id, projectId: r.project_id, filePath: r.file_path,
+      baseDbSha: r.base_db_sha, baseFileSha: r.base_file_sha, syncedAt: r.synced_at,
+    };
+  }
+
+  upsertCardSync({ kind, cardId, projectId, filePath, baseDbSha, baseFileSha }) {
+    this.db.prepare(`INSERT INTO card_sync (kind,card_id,project_id,file_path,base_db_sha,base_file_sha,synced_at)
+                     VALUES (?,?,?,?,?,?,?)
+                     ON CONFLICT(kind,card_id) DO UPDATE SET
+                       project_id=excluded.project_id, file_path=excluded.file_path,
+                       base_db_sha=excluded.base_db_sha, base_file_sha=excluded.base_file_sha,
+                       synced_at=excluded.synced_at`)
+      .run(kind, cardId, projectId, filePath, baseDbSha, baseFileSha, now());
+  }
+
+  listCardSync(projectId) {
+    return this.db.prepare('SELECT * FROM card_sync WHERE project_id = ?').all(projectId).map((r) => ({
+      kind: r.kind, cardId: r.card_id, filePath: r.file_path,
+      baseDbSha: r.base_db_sha, baseFileSha: r.base_file_sha, syncedAt: r.synced_at,
+    }));
+  }
   // ---------- agent config ----------
 
   upsertAgentProfile(p) {
@@ -397,9 +424,12 @@ export class Store {
   }
 
   listEvents({ projectId, since = 0, limit = 100 }) {
+    // 取“最新的 N 条”再按时间正序返回：面板看的是最近事件，增量轮询看的是 since 之后的事件
     const rows = projectId
-      ? this.db.prepare('SELECT * FROM events WHERE project_id = ? AND id > ? ORDER BY id LIMIT ?').all(projectId, since, limit)
-      : this.db.prepare('SELECT * FROM events WHERE id > ? ORDER BY id LIMIT ?').all(since, limit);
+      ? this.db.prepare(`SELECT * FROM (SELECT * FROM events WHERE project_id = ? AND id > ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC`)
+        .all(projectId, since, limit)
+      : this.db.prepare(`SELECT * FROM (SELECT * FROM events WHERE id > ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC`)
+        .all(since, limit);
     return rows.map((r) => ({
       id: r.id, kind: r.kind, at: r.at, projectId: r.project_id, requirementId: r.requirement_id,
       taskId: r.task_id, runId: r.run_id, payload: P(r.payload_json),
