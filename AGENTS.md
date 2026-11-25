@@ -295,3 +295,4 @@ node tools/visual/capture-docs.mjs  # 重生成 docs/images/ 四张界面插图
 | 待办/已知问题/回归约定 | `docs/backlog.md` |
 | 契约包总纲/双写边界 | `contracts/README.md` |
 | 单仓零迁移样例 | `samples/order-cancel-pilot/README.md` |
+| 待办任务列表（机器可读，AI 工具可推送） | `TASKS.md` |
