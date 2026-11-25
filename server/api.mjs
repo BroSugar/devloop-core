@@ -271,6 +271,39 @@ export function createApi({ store }) {
       }
     } },
 
+    { method: 'GET', pattern: /^\/api\/v1\/prds$/, fn: async ({ query }) => {
+      if (!query.projectId) return badRequest('缺少 projectId');
+      return ok(await store.listPrds(query.projectId));
+    } },
+
+    { method: 'POST', pattern: /^\/api\/v1\/prds$/, fn: async ({ body }) => {
+      if (!body?.title) return badRequest('缺少 title');
+      if (!body?.projectId) return badRequest('缺少 projectId');
+      if (!(await store.getProject(body.projectId))) return notFound('项目不存在');
+      const id = body.id ?? `PRD-${Date.now().toString(36)}`;
+      const prd = await store.upsertPrd({ id, projectId: body.projectId, title: body.title, content: body.content ?? '' });
+      return ok(prd, { headers: { ETag: `"v${prd.version}"` } });
+    } },
+
+    { method: 'GET', pattern: /^\/api\/v1\/prds\/([^/]+)$/, fn: async ({ params }) => {
+      const prd = await store.getPrd(params[0]);
+      if (!prd) return notFound('PRD 不存在');
+      return ok(prd, { headers: { ETag: `"v${prd.version}"` } });
+    } },
+
+    { method: 'PUT', pattern: /^\/api\/v1\/prds\/([^/]+)$/, fn: async ({ params, body, headers }) => {
+      if (!body) return badRequest('缺少请求体');
+      const result = await store.updatePrd(params[0], body, parseIfMatch(headers['if-match']));
+      if (result.error === 'not_found') return notFound('PRD 不存在');
+      if (result.error === 'conflict') return conflict('版本冲突，请重新拉取后编辑', [`current version = ${result.current.version}`]);
+      return ok(result.data, { headers: { ETag: `"v${result.data.version}"` } });
+    } },
+
+    { method: 'GET', pattern: /^\/api\/v1\/prds\/([^/]+)\/reviews$/, fn: async ({ params }) => {
+      if (!(await store.getPrd(params[0]))) return notFound('PRD 不存在');
+      return ok(await store.listPrdReviews(params[0]));
+    } },
+
     { method: 'GET', pattern: /^\/api\/v1\/agent-config$/, fn: async ({ query }) => {
       const projectId = query.projectId || (await store.listProjects())[0]?.id;
       if (!projectId) return notFound('没有已注册项目');
