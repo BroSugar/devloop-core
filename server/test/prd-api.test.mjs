@@ -71,3 +71,11 @@ test('缺少 projectId 或 title 返回 400', async () => {
   const r2 = await api('POST', '/api/v1/prds', { body: { projectId: 'ledger-cli' } });
   assert.equal(r2.status, 400);
 });
+
+test('refining/reviewing 期间编辑返回 409（锁定）', async () => {
+  const created = await api('POST', '/api/v1/prds', { body: { projectId: 'ledger-cli', title: '锁定测试' } });
+  const id = created.json.data.id;
+  await store.upsertPrd({ id, status: 'reviewing' });
+  const res = await api('PUT', `/api/v1/prds/${id}`, { body: { title: 'x' } });
+  assert.equal(res.status, 409);
+});

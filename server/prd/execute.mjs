@@ -30,7 +30,8 @@ const pickInvoke = (role, projectId, invokeFn) =>
   invokeFn ?? (async ({ prdContent }) => defaultInvoke({ role, projectId, prdContent }));
 
 async function countReviews(store, prdId) {
-  return (await store.listPrdReviews(prdId)).filter((r) => r.kind === 'review').length;
+  // 只统计「完成」的审核轮次（passed），失败的不占重试额度
+  return (await store.listPrdReviews(prdId)).filter((r) => r.kind === 'review' && r.status === 'passed').length;
 }
 
 export async function refinePrd(store, prdId, { invokeFn } = {}) {
@@ -77,15 +78,17 @@ export async function reviewPrd(store, prdId, { invokeFn } = {}) {
     throw e;
   }
 
-  let parsed;
+  let obj;
   try {
-    parsed = JSON.parse(text);
+    obj = JSON.parse(text);
   } catch {
-    parsed = { verdict: 'needs_revision', findings: [{ item: 0, severity: 'high', problem: '审核输出不是合法 JSON', requiredFix: '审核 agent 需输出 JSON' }] };
+    obj = null;
   }
-  const verdict = parsed.verdict ?? 'needs_revision';
-  const findings = parsed.findings ?? [];
-  const nextStatus = { pass: 'approved', needs_revision: 'needs_revision', reject: 'rejected' }[verdict] ?? 'needs_revision';
+  if (!obj || typeof obj !== 'object') obj = {};
+  const rawVerdict = String(obj.verdict ?? '').toLowerCase().trim();
+  const verdict = ['pass', 'needs_revision', 'reject'].includes(rawVerdict) ? rawVerdict : 'needs_revision';
+  const findings = Array.isArray(obj.findings) ? obj.findings : [];
+  const nextStatus = { pass: 'approved', needs_revision: 'needs_revision', reject: 'rejected' }[verdict];
 
   await store.upsertPrd({ id: prdId, status: nextStatus });
   await store.createPrdReview({

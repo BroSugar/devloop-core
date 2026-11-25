@@ -76,3 +76,28 @@ test('invoke 失败 → prd_reviews.status=failed 且状态回退', async () => 
   assert.equal(reviews[0].kind, 'refine');
   assert.equal(reviews[0].status, 'failed');
 });
+
+test('verdict 大小写/非对象也安全（归一化，不 500 不损坏状态）', async () => {
+  const prd = await createPrd();
+  await refinePrd(store, prd.id, { invokeFn: mockRefine('x') });
+  // 大小写归一化
+  const after = await reviewPrd(store, prd.id, { invokeFn: async () => JSON.stringify({ verdict: 'Pass' }) });
+  assert.equal(after.status, 'approved');
+  assert.equal((await store.listPrdReviews(prd.id)).find((r) => r.kind === 'review').verdict, 'pass');
+
+  // 非对象输出（JSON.parse 出 null）也能落 needs_revision
+  const prd2 = await createPrd();
+  await refinePrd(store, prd2.id, { invokeFn: mockRefine('x') });
+  const after2 = await reviewPrd(store, prd2.id, { invokeFn: async () => 'null' });
+  assert.equal(after2.status, 'needs_revision');
+});
+
+test('失败审核不计入轮数（3 次失败后仍可重试成功）', async () => {
+  const prd = await createPrd();
+  await refinePrd(store, prd.id, { invokeFn: mockRefine('x') });
+  for (let i = 0; i < 3; i++) {
+    await assert.rejects(() => reviewPrd(store, prd.id, { invokeFn: async () => { throw new Error('网络失败'); } }), /网络失败/);
+  }
+  const after = await reviewPrd(store, prd.id, { invokeFn: mockReview('pass') });
+  assert.equal(after.status, 'approved');
+});

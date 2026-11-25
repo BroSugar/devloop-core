@@ -612,6 +612,7 @@ export class Store {
   async updatePrd(id, patch, guard) {
     const row = await this._one('SELECT * FROM prds WHERE id = $1', [id]);
     if (!row) return { error: 'not_found' };
+    if (row.status === 'refining' || row.status === 'reviewing') return { error: 'locked', current: await this.getPrd(id) };
     if (guard !== undefined && row.version !== guard) return { error: 'conflict', current: await this.getPrd(id) };
     return withTransaction(this.pool, async (client) => ({
       data: await this.upsertPrd({ id, title: patch.title, content: patch.content }, client),

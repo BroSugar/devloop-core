@@ -296,6 +296,7 @@ export function createApi({ store }) {
       if (!body) return badRequest('缺少请求体');
       const result = await store.updatePrd(params[0], body, parseIfMatch(headers['if-match']));
       if (result.error === 'not_found') return notFound('PRD 不存在');
+      if (result.error === 'locked') return conflict('评审期间锁定，暂不可编辑');
       if (result.error === 'conflict') return conflict('版本冲突，请重新拉取后编辑', [`current version = ${result.current.version}`]);
       return ok(result.data, { headers: { ETag: `"v${result.data.version}"` } });
     } },
