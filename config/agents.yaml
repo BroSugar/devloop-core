@@ -23,11 +23,26 @@ agents:
     temperature: 0.0
     max_tokens: 4096
 
+  # PRD 审核把关：完善与审核两个独立角色（禁止自审）
+  refiner:
+    provider: openai-compatible
+    prompt: prompts/refine.md
+    temperature: 0.3
+    max_tokens: 8192
+
+  prd-reviewer:
+    provider: openai-compatible
+    prompt: prompts/prd-review.md
+    temperature: 0.0
+    max_tokens: 4096
+
 routing:
   default: decomposer
   by_role:
     decomposer: decomposer
     implementer: implementer
     reviewer: reviewer
+    refiner: refiner
+    prd-reviewer: prd-reviewer
   # 按项目覆盖：项目 id → 角色 → agent 名
   by_project: {}

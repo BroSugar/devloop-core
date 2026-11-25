@@ -190,3 +190,33 @@ CREATE TABLE IF NOT EXISTS card_sync (
   PRIMARY KEY (kind, card_id)
 );
 CREATE INDEX IF NOT EXISTS idx_card_sync_project ON card_sync(project_id);
+
+-- PRD 文档：上传云平台前的质量把关（v1 只做到审核通过，上传留适配器接口）
+CREATE TABLE IF NOT EXISTS prds (
+  id         TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title      TEXT NOT NULL,
+  content    TEXT NOT NULL DEFAULT '',
+  status     TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'refining', 'reviewing', 'approved', 'needs_revision', 'rejected')),
+  version    INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_prds_project ON prds(project_id, status);
+
+-- 一次「完善」或「审核」执行记录（证据链：钉住输出与输入哈希，可重放审计）
+CREATE TABLE IF NOT EXISTS prd_reviews (
+  id              TEXT PRIMARY KEY,
+  prd_id          TEXT NOT NULL REFERENCES prds(id) ON DELETE CASCADE,
+  kind            TEXT NOT NULL CHECK (kind IN ('refine', 'review')),
+  status          TEXT NOT NULL CHECK (status IN ('running', 'passed', 'failed')),
+  verdict         TEXT CHECK (verdict IN ('pass', 'needs_revision', 'reject')),
+  findings_json   TEXT,
+  output          TEXT,
+  agent           TEXT,
+  sha256          TEXT,
+  content_sha256  TEXT,
+  content_version INTEGER,
+  created_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_prd_reviews_prd ON prd_reviews(prd_id, created_at DESC);
