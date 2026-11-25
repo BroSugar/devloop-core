@@ -8,6 +8,7 @@ import { PLATFORM_ROOT } from '../platform/lib/config.mjs';
 import { computeSyncState, exportCards, importCards } from './cards/sync.mjs';
 import { validateCards } from './pipeline/validate.mjs';
 import { executeRun } from './pipeline/execute.mjs';
+import { refinePrd, reviewPrd } from './prd/execute.mjs';
 
 const ok = (data, extra = {}) => ({ status: 200, data, ...extra });
 const accepted = (data) => ({ status: 202, data });
@@ -302,6 +303,26 @@ export function createApi({ store }) {
     { method: 'GET', pattern: /^\/api\/v1\/prds\/([^/]+)\/reviews$/, fn: async ({ params }) => {
       if (!(await store.getPrd(params[0]))) return notFound('PRD 不存在');
       return ok(await store.listPrdReviews(params[0]));
+    } },
+
+    { method: 'POST', pattern: /^\/api\/v1\/prds\/([^/]+)\/refine$/, fn: async ({ params }) => {
+      try {
+        return ok(await refinePrd(store, params[0]));
+      } catch (e) {
+        if (e.code === 'not_found') return notFound(e.message);
+        if (e.code === 'bad_request') return badRequest(e.message);
+        throw e;
+      }
+    } },
+
+    { method: 'POST', pattern: /^\/api\/v1\/prds\/([^/]+)\/review$/, fn: async ({ params }) => {
+      try {
+        return ok(await reviewPrd(store, params[0]));
+      } catch (e) {
+        if (e.code === 'not_found') return notFound(e.message);
+        if (e.code === 'bad_request') return badRequest(e.message);
+        throw e;
+      }
     } },
 
     { method: 'GET', pattern: /^\/api\/v1\/agent-config$/, fn: async ({ query }) => {
