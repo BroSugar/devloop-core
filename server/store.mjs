@@ -569,4 +569,84 @@ export class Store {
       taskId: r.task_id, runId: r.run_id, payload: P(r.payload_json),
     }));
   }
+
+  // ---------- PRD ----------
+
+  mapPrd(row) {
+    if (!row) return null;
+    return {
+      id: row.id, projectId: row.project_id, title: row.title, content: row.content,
+      status: row.status, version: row.version, createdAt: row.created_at, updatedAt: row.updated_at,
+    };
+  }
+
+  async upsertPrd(p, client) {
+    const at = now();
+    const existing = await this._one('SELECT * FROM prds WHERE id = $1', [p.id], client);
+    if (existing) {
+      await this._run(
+        `UPDATE prds SET title=$1, content=$2, status=$3, version=version+1, updated_at=$4 WHERE id=$5`,
+        [p.title ?? existing.title, p.content ?? existing.content, p.status ?? existing.status, at, p.id],
+        client,
+      );
+    } else {
+      await this._run(
+        `INSERT INTO prds (id,project_id,title,content,status,version,created_at,updated_at)
+         VALUES ($1,$2,$3,$4,$5,1,$6,$7)`,
+        [p.id, p.projectId, p.title, p.content ?? '', p.status ?? 'draft', at, at],
+        client,
+      );
+    }
+    return this.getPrd(p.id, client);
+  }
+
+  async getPrd(id, client) {
+    return this.mapPrd(await this._one('SELECT * FROM prds WHERE id = $1', [id], client));
+  }
+
+  async listPrds(projectId) {
+    const rows = await this._all('SELECT * FROM prds WHERE project_id = $1 ORDER BY created_at DESC, id', [projectId]);
+    return rows.map((r) => this.mapPrd(r));
+  }
+
+  async updatePrd(id, patch, guard) {
+    const row = await this._one('SELECT * FROM prds WHERE id = $1', [id]);
+    if (!row) return { error: 'not_found' };
+    if (row.status === 'refining' || row.status === 'reviewing') return { error: 'locked', current: await this.getPrd(id) };
+    if (guard !== undefined && row.version !== guard) return { error: 'conflict', current: await this.getPrd(id) };
+    return withTransaction(this.pool, async (client) => ({
+      data: await this.upsertPrd({ id, title: patch.title, content: patch.content }, client),
+    }));
+  }
+
+  // ---------- PRD reviews ----------
+
+  mapPrdReview(row) {
+    if (!row) return null;
+    return {
+      id: row.id, prdId: row.prd_id, kind: row.kind, status: row.status,
+      verdict: row.verdict, findings: P(row.findings_json), output: row.output,
+      agent: row.agent, sha256: row.sha256, contentSha256: row.content_sha256,
+      contentVersion: row.content_version, createdAt: row.created_at,
+    };
+  }
+
+  async createPrdReview(r) {
+    await this._run(
+      `INSERT INTO prd_reviews (id,prd_id,kind,status,verdict,findings_json,output,agent,sha256,content_sha256,content_version,created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [r.id, r.prdId, r.kind, r.status, r.verdict ?? null, J(r.findings), r.output ?? null,
+        r.agent ?? null, r.sha256 ?? null, r.contentSha256 ?? null, r.contentVersion ?? null, now()],
+    );
+    return this.getPrdReview(r.id);
+  }
+
+  async getPrdReview(id) {
+    return this.mapPrdReview(await this._one('SELECT * FROM prd_reviews WHERE id = $1', [id]));
+  }
+
+  async listPrdReviews(prdId) {
+    const rows = await this._all('SELECT * FROM prd_reviews WHERE prd_id = $1 ORDER BY created_at ASC, id', [prdId]);
+    return rows.map((r) => this.mapPrdReview(r));
+  }
 }

@@ -55,4 +55,11 @@ export const api = {
   exportCards: (projectId, body) => post(`/api/v1/projects/${projectId}/card-sync/export`, body || {}),
   importCards: (projectId, body) => post(`/api/v1/projects/${projectId}/card-sync/import`, body || {}),
   events: (projectId, since = 0) => get(`/api/v1/events?projectId=${encodeURIComponent(projectId)}&since=${since}`),
+  prds: (projectId) => get(`/api/v1/prds?projectId=${encodeURIComponent(projectId)}`),
+  createPrd: (body) => post('/api/v1/prds', body),
+  getPrd: (id) => get(`/api/v1/prds/${id}`),
+  updatePrd: (id, body, etag) => put(`/api/v1/prds/${id}`, body, etag),
+  refinePrd: (id) => post(`/api/v1/prds/${id}/refine`),
+  reviewPrd: (id) => post(`/api/v1/prds/${id}/review`),
+  listPrdReviews: (id) => get(`/api/v1/prds/${id}/reviews`),
 };

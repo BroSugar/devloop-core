@@ -94,7 +94,12 @@ check('卡同步视图：表格有数据行', rows >= 1, `rows=${rows}`);
 check('卡同步视图：状态徽章存在', (await page.locator('[data-testid=sync-state]').count()) >= 1);
 await shot('05-sync.png');
 
-// ---------- 7. 观察项（不计失败）----------
+// ---------- 7. PRD 视图 ----------
+await page.getByRole('button', { name: 'PRD' }).click();
+await page.getByTestId('prd-empty').waitFor({ timeout: 8000 });
+check('PRD 视图：空态可见', true);
+
+// ---------- 8. 观察项（不计失败）----------
 const urlAfterNav = page.url();
 const observations = [
   urlAfterNav === BASE || urlAfterNav === `${BASE}/`

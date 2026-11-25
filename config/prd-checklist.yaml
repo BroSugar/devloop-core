@@ -1,0 +1,49 @@
+# PRD 标准文档检查清单（v2，与设计文档逐字一致，不得改写）
+# gate: hard = 硬门（缺失即 needs_revision）；soft = 软门（由 reviewer agent 质量判定）
+version: 1
+items:
+  - id: 1
+    gate: hard
+    text: "问题陈述：一句话说清要解决什么问题、为什么现在做"
+  - id: 2
+    gate: hard
+    text: "目标用户/角色：谁在用、谁受益，明确到角色"
+  - id: 3
+    gate: hard
+    text: "目标可衡量：有明确成功标准，禁止提升体验、优化效率这类不可判定的话"
+  - id: 4
+    gate: hard
+    text: "非目标/反目标：明确不做什么"
+  - id: 5
+    gate: hard
+    text: "范围明确：in-scope / out-of-scope 写清楚，涉及哪些系统/模块"
+  - id: 6
+    gate: hard
+    text: "口径定义：关键术语有定义（无黑话、无未定义的缩写）"
+  - id: 7
+    gate: hard
+    text: "核心功能列表完整：覆盖问题陈述里的全部诉求，无遗漏"
+  - id: 8
+    gate: hard
+    text: "优先级明确：每个功能标 P0/P1/P2"
+  - id: 9
+    gate: hard
+    text: "每个核心功能都有验收标准：说清怎么算做完"
+  - id: 10
+    gate: hard
+    text: "验收可判定：可测试/可验证，不是体验良好、性能更好这类模糊描述"
+  - id: 11
+    gate: hard
+    text: "数据指标明确：关键指标有口径，需要埋点/上报的数据点明确"
+  - id: 12
+    gate: soft
+    text: "失败/异常场景覆盖：错误输入、空态、超时、并发、权限、网络失败"
+  - id: 13
+    gate: soft
+    text: "边界条件覆盖：上下限、极端值、边界值"
+  - id: 14
+    gate: soft
+    text: "无自相矛盾：目标 ↔ 功能 ↔ 验收三者一致"
+  - id: 15
+    gate: soft
+    text: "无残留占位：无 TODO/待定/未定义引用"

@@ -27,6 +27,8 @@ export const TONE_BY_STATUS = {
   failed: 'danger', blocked: 'neutral', pending: 'neutral', draft: 'neutral', archived: 'neutral',
   synced: 'success', db_ahead: 'warning', file_ahead: 'warning', conflict: 'danger',
   db_only: 'warning', file_only: 'warning', untracked: 'danger',
+  // PRD 状态
+  refining: 'info', reviewing: 'info', needs_revision: 'warning', approved: 'success', rejected: 'danger',
 };
 
 // tone → SVG 描边色（CSS 变量），供连线/节点 accent 复用
