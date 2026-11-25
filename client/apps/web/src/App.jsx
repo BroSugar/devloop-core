@@ -8,7 +8,8 @@ import { FlowView } from './views/FlowView.jsx';
 import { CardView } from './views/CardView.jsx';
 import { EvidenceView } from './views/EvidenceView.jsx';
 import { SyncView } from './views/SyncView.jsx';
-import { Workflow, GitCompareArrows, KeyRound, Folder, Terminal, Bot } from 'lucide-react';
+import { PrdView } from './views/PrdView.jsx';
+import { Workflow, GitCompareArrows, KeyRound, Folder, Terminal, Bot, FileText } from 'lucide-react';
 
 const lines = (text) => String(text ?? '').split('\n').map((s) => s.trim()).filter(Boolean);
 const CAP_ICONS = { fs: Folder, term: Terminal, agent: Bot };
@@ -176,6 +177,9 @@ export default function App() {
           <Button variant={view.name === 'flow' ? 'subtle' : 'ghost'} size="sm" onClick={() => setView({ name: 'flow' })}>
             <Workflow className="size-3.5" aria-hidden="true" />流程视图
           </Button>
+          <Button variant={view.name === 'prd' ? 'subtle' : 'ghost'} size="sm" onClick={() => setView({ name: 'prd' })}>
+            <FileText className="size-3.5" aria-hidden="true" />PRD
+          </Button>
           <Button variant={view.name === 'sync' ? 'subtle' : 'ghost'} size="sm" onClick={() => setView({ name: 'sync' })}>
             <GitCompareArrows className="size-3.5" aria-hidden="true" />卡同步{conflicts > 0 ? ` ⚠${conflicts}` : ''}
           </Button>
@@ -231,6 +235,10 @@ export default function App() {
             onImport={(dry) => doSync(dry, 'import')}
             onBack={() => setView({ name: 'flow' })}
           />
+        ) : null}
+
+        {view.name === 'prd' && project ? (
+          <PrdView projectId={project.id} />
         ) : null}
 
         {!panel && !banner ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
