@@ -11,7 +11,7 @@
     "server:install": "npm --prefix server ci",
     "client:install": "pnpm --dir client install --frozen-lockfile",
     "client:build": "pnpm --dir client build",
-    "test": "node server/test/api.test.mjs && node server/test/cardsync.test.mjs && node server/test/ci-contract.test.mjs",
+    "test": "node server/test/api.test.mjs && node server/test/cardsync.test.mjs && node server/test/ci-contract.test.mjs && node server/test/prd-api.test.mjs && node server/test/prd-review.test.mjs",
     "verify": "npm run bootstrap && npm test"
   }
 }
